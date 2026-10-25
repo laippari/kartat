@@ -32,5 +32,9 @@ export default defineConfig(({ mode }) =>
         publicDir: 'artifact/public',
         build: { outDir: 'dist-artifact', emptyOutDir: true },
       }
-    : { plugins: [react()] },
+    : {
+        plugins: [react()],
+        // Relative, so the same build works at any path, e.g. GitHub Pages' /kartat/.
+        base: './',
+      },
 );

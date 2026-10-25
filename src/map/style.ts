@@ -26,7 +26,8 @@ export const mapStyle: StyleSpecification = {
     // Hyvinkää–Hanko until zoomed in close, so this draws the overview instead.
     network: {
       type: 'geojson',
-      data: '/data/rail-network.geojson',
+      // Absolute, because MapLibre resolves URLs inside a worker with no page base.
+      data: new URL('data/rail-network.geojson', document.baseURI).href,
       attribution: 'Rataverkko: Väylävirasto / digitraffic.fi, CC BY 4.0',
     },
   },

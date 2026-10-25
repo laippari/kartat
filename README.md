@@ -14,6 +14,13 @@ npm run build      # tuotantoversio hakemistoon dist/
 
 Sovellus toimii kokonaan selaimessa, eikä se tarvitse API-avaimia.
 
+## Julkaisu
+
+Jokainen push haaraan `junat-mvp` tai `main` rakentaa ja julkaisee sovelluksen GitHub Pagesiin
+(`.github/workflows/deploy.yml`): https://laippari.github.io/kartat/
+
+Kertaluonteinen asetus: repon *Settings → Pages → Build and deployment → Source: GitHub Actions*.
+
 ## Tietolähteet
 
 | Mitä | Mistä | Miten |
