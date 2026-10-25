@@ -29,6 +29,8 @@ export function MapControls({ onZoomIn, onZoomOut, onLocate }: Props) {
           <Minus />
         </button>
       </div>
+      {/* The artifact sandbox refuses location access, so the button would only fail there. */}
+      {import.meta.env.MODE !== 'artifact' && (
       <div className="control-group">
         <button
           type="button"
@@ -40,6 +42,7 @@ export function MapControls({ onZoomIn, onZoomOut, onLocate }: Props) {
           <Locate />
         </button>
       </div>
+      )}
     </div>
   );
 }

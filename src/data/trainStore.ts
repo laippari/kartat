@@ -1,8 +1,10 @@
 import { useSyncExternalStore } from 'react';
+import { now as clockNow } from './clock';
 import {
   fetchLatestLocations,
   fetchRunningTrains,
   fetchStations,
+  recording,
   subscribeLocations,
 } from './digitraffic';
 import { CATEGORIES, type Category, type Station, type TrainKey, type TrainLocation, type TrainMeta } from './types';
@@ -12,6 +14,8 @@ const STALE_MS = 10 * 60_000;
 const META_REFRESH_MS = 60_000;
 /** A position this recent from a train we do not know yet means it just set off. */
 const NEW_TRAIN_MS = 30_000;
+/** Farther than this between two fixes is a jump (bad GPS, replay restart): move there at once. */
+const JUMP_METRES = 2000;
 
 const reducedMotion =
   typeof window !== 'undefined' && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
@@ -31,6 +35,8 @@ export interface Snapshot {
   counts: Record<Category, number>;
   /** Bumps whenever train metadata or stations change. */
   version: number;
+  /** Set when the trains are a recording being replayed instead of live data. */
+  recording: { start: number; end: number } | null;
 }
 
 const emptyCounts = (): Record<Category, number> =>
@@ -49,7 +55,7 @@ class TrainStore {
   private metaLoaded = false;
   stations = new Map<string, Station>();
 
-  private snapshot: Snapshot = { ready: false, connected: false, counts: emptyCounts(), version: 0 };
+  private snapshot: Snapshot = { ready: false, connected: false, counts: emptyCounts(), version: 0, recording: null };
   private listeners = new Set<() => void>();
   private started = false;
   private metaRefreshPending = false;
@@ -79,7 +85,7 @@ class TrainStore {
 
     Promise.allSettled([this.refreshMeta(), fetchLatestLocations()]).then(([, locations]) => {
       if (locations.status === 'fulfilled') locations.value.forEach((l) => this.upsert(l, true));
-      this.publish({ ready: true });
+      this.publish({ ready: true, recording: recording() });
     });
 
     subscribeLocations(
@@ -92,7 +98,7 @@ class TrainStore {
   }
 
   private async refreshMeta() {
-    const startedAt = Date.now();
+    const startedAt = clockNow();
     try {
       const trains = await fetchRunningTrains();
       trains.forEach((t) => this.meta.set(t.key, t));
@@ -123,9 +129,9 @@ class TrainStore {
         duration: 0,
         receivedAt: now,
       });
-      const fresh = Date.now() - location.timestamp < NEW_TRAIN_MS;
+      const fresh = clockNow() - location.timestamp < NEW_TRAIN_MS;
       if (!initial && fresh && !this.running.has(location.key)) {
-        this.pending.set(location.key, Date.now());
+        this.pending.set(location.key, clockNow());
         this.scheduleMetaRefresh();
       }
       return;
@@ -134,12 +140,14 @@ class TrainStore {
     // Glide from wherever the dot is drawn now to the new fix, over roughly the
     // interval between fixes, so movement looks continuous rather than jumpy.
     const interval = now - existing.receivedAt;
+    const from = this.positionOf(existing, now);
+    const jump = distanceMetres(from, target) > JUMP_METRES;
     this.tracked.set(location.key, {
       location,
-      from: this.positionOf(existing, now),
+      from,
       to: target,
       start: now,
-      duration: reducedMotion ? 0 : Math.min(Math.max(interval, 600), 5000),
+      duration: reducedMotion || jump ? 0 : Math.min(Math.max(interval, 600), 5000),
       receivedAt: now,
     });
   }
@@ -160,7 +168,7 @@ class TrainStore {
   }
 
   private isFresh(t: Tracked) {
-    if (Date.now() - t.location.timestamp > STALE_MS) return false;
+    if (clockNow() - t.location.timestamp > STALE_MS) return false;
     // Without metadata there is nothing to filter by; better to show every train.
     if (!this.metaLoaded) return true;
     return this.running.has(t.location.key) || this.pending.has(t.location.key);
@@ -199,6 +207,13 @@ class TrainStore {
     const changed = CATEGORIES.some((c) => counts[c] !== this.snapshot.counts[c]);
     if (changed) this.publish({ counts });
   }
+}
+
+function distanceMetres([lng1, lat1]: [number, number], [lng2, lat2]: [number, number]) {
+  const k = Math.PI / 180;
+  const x = (lng2 - lng1) * k * Math.cos(((lat1 + lat2) / 2) * k);
+  const y = (lat2 - lat1) * k;
+  return Math.hypot(x, y) * 6_371_000;
 }
 
 export const trainStore = new TrainStore();

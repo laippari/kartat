@@ -323,6 +323,16 @@ button {
   color: var(--muted);
 }
 
+.legend-recording {
+  margin: 4px 12px 2px;
+  padding: 8px 10px;
+  border-radius: 6px;
+  background: var(--paper-deep);
+  font-size: 12px;
+  line-height: 1.4;
+  color: var(--ink-soft);
+}
+
 .glyph {
   justify-self: center;
   width: 10px;

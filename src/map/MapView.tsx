@@ -73,7 +73,8 @@ export function MapView(props: Props) {
       attributionControl: false,
     });
     mapRef.current = map;
-    if (import.meta.env.DEV) Object.assign(window, { __map: map });
+    // Handle for poking at the map from the console while developing and testing.
+    if (import.meta.env.DEV || import.meta.env.MODE === 'artifact') Object.assign(window, { __map: map });
     map.touchZoomRotate.disableRotation();
     map.keyboard.disableRotation();
     const attribution = new maplibregl.AttributionControl({

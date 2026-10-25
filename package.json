@@ -9,7 +9,9 @@
     "preview": "vite preview",
     "typecheck": "tsc -b",
     "test": "vitest run",
-    "data:rail": "node scripts/build-rail-network.mjs"
+    "data:rail": "node scripts/build-rail-network.mjs",
+    "data:artifact": "node scripts/build-artifact-data.mjs",
+    "build:artifact": "tsc -b && vite build --mode artifact && node scripts/package-artifact.mjs"
   },
   "dependencies": {
     "@fontsource/ibm-plex-mono": "^5.3.0",
@@ -20,10 +22,12 @@
     "react-dom": "^19.3.1"
   },
   "devDependencies": {
+    "@mapbox/vector-tile": "^2.0.5",
     "@types/geojson": "^7946.0.16",
     "@types/react": "^19.3.0",
     "@types/react-dom": "^19.3.0",
     "@vitejs/plugin-react": "^6.1.2",
+    "pbf": "^4.0.2",
     "typescript": "^7.0.2",
     "vite": "^8.3.5",
     "vitest": "^5.0.5"

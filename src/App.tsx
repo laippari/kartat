@@ -8,9 +8,20 @@ import { Sheet } from './ui/Sheet';
 import { TrainCard } from './ui/TrainCard';
 import { TrainDetails, TrainHeader } from './ui/TrainDetails';
 
-// A selected train is kept in the address, e.g. #juna/2026-10-25/27, so a view can be shared.
-const HASH_PREFIX = '#juna/';
-const keyFromHash = () => (location.hash.startsWith(HASH_PREFIX) ? location.hash.slice(HASH_PREFIX.length) : null);
+// A selected train is kept in the address, e.g. #juna_2026-10-25_27, so a view can be shared.
+// Kept to plain characters: the artifact viewer passes on only simple anchors.
+const HASH_PREFIX = '#juna_';
+const hashFor = (key: TrainKey) => HASH_PREFIX + key.replace('/', '_');
+const keyFromHash = () =>
+  location.hash.startsWith(HASH_PREFIX) ? location.hash.slice(HASH_PREFIX.length).replace('_', '/') : null;
+
+function replaceHash(hash: string) {
+  try {
+    history.replaceState(null, '', hash || location.pathname + location.search);
+  } catch {
+    // Sandboxed frames may refuse history changes; the link is a convenience.
+  }
+}
 
 export function App() {
   const [selectedKey, setSelectedKey] = useState<TrainKey | null>(null);
@@ -54,14 +65,14 @@ export function App() {
       setFollowing(true);
       map.current?.showTrain(key);
     } else {
-      history.replaceState(null, '', location.pathname);
+      replaceHash('');
     }
   }, [ready, mapReady]);
 
   useEffect(() => {
     if (!ready) return;
-    const hash = selectedKey && detailsOpen ? HASH_PREFIX + selectedKey : '';
-    if (location.hash !== hash) history.replaceState(null, '', hash || location.pathname);
+    const hash = selectedKey && detailsOpen ? hashFor(selectedKey) : '';
+    if (location.hash !== hash) replaceHash(hash);
   }, [ready, selectedKey, detailsOpen]);
 
   useEffect(() => {

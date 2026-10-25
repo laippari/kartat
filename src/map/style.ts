@@ -167,7 +167,7 @@ export const mapStyle: StyleSpecification = {
       type: 'symbol',
       source: 'base',
       'source-layer': 'place',
-      minzoom: 5,
+      minzoom: 4,
       filter: ['==', ['get', 'class'], 'city'],
       layout: {
         'text-field': name,

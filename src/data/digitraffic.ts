@@ -1,15 +1,19 @@
 import mqtt from 'mqtt';
 import {
-  trainKey,
-  type Category,
-  type Station,
-  type TrainDetails,
-  type TrainLocation,
-  type TrainMeta,
-} from './types';
+  parseLocation,
+  parseRunningTrain,
+  parseStations,
+  RUNNING_TRAINS_QUERY,
+  type RawLocation,
+  type RawRunningTrain,
+  type RawStation,
+} from './parse';
+import type { Station, TrainDetails, TrainLocation, TrainMeta } from './types';
 
 // Rail data from Fintraffic Digitraffic, licensed CC BY 4.0.
 // https://www.digitraffic.fi/rautatieliikenne/
+// The artifact build replaces this module with src/artifact/digitraffic.ts,
+// which exports the same functions over a recorded replay.
 const API = 'https://rata.digitraffic.fi/api';
 const MQTT_URL = 'wss://rata.digitraffic.fi:443/mqtt';
 
@@ -25,67 +29,12 @@ async function getJson<T>(path: string, init?: RequestInit): Promise<T> {
   return res.json() as Promise<T>;
 }
 
-export function toCategory(name: string | undefined): Category {
-  switch (name) {
-    case 'Long-distance':
-      return 'long-distance';
-    case 'Commuter':
-      return 'commuter';
-    case 'Cargo':
-      return 'cargo';
-    default:
-      return 'other';
-  }
-}
-
-interface RawLocation {
-  trainNumber: number;
-  departureDate: string;
-  timestamp: string;
-  speed: number;
-  location: { coordinates: [number, number] };
-}
-
-export function parseLocation(raw: RawLocation): TrainLocation {
-  const [lng, lat] = raw.location.coordinates;
-  return {
-    key: trainKey(raw.departureDate, raw.trainNumber),
-    trainNumber: raw.trainNumber,
-    departureDate: raw.departureDate,
-    lng,
-    lat,
-    speed: raw.speed,
-    timestamp: Date.parse(raw.timestamp),
-  };
-}
+/** When the data is a recording rather than live, the span it covers. */
+export const recording = (): { start: number; end: number } | null => null;
 
 export async function fetchLatestLocations(): Promise<TrainLocation[]> {
   const raw = await getJson<RawLocation[]>('/v1/train-locations/latest/');
   return raw.map(parseLocation);
-}
-
-const RUNNING_TRAINS_QUERY = `{
-  currentlyRunningTrains {
-    trainNumber
-    departureDate
-    commuterLineid
-    operator { shortCode }
-    trainType { name trainCategory { name } }
-    first: timeTableRows(take: 1) { station { shortCode } scheduledTime }
-    last: timeTableRows(orderBy: { scheduledTime: DESCENDING }, take: 1) { station { shortCode } scheduledTime }
-    latest: timeTableRows(where: { actualTime: { unequals: null } }, orderBy: { actualTime: DESCENDING }, take: 1) { differenceInMinutes }
-  }
-}`;
-
-interface RawRunningTrain {
-  trainNumber: number;
-  departureDate: string;
-  commuterLineid: string | null;
-  operator: { shortCode: string };
-  trainType: { name: string; trainCategory: { name: string } };
-  first: { station: { shortCode: string }; scheduledTime: string }[];
-  last: { station: { shortCode: string }; scheduledTime: string }[];
-  latest: { differenceInMinutes: number | null }[];
 }
 
 export async function fetchRunningTrains(): Promise<TrainMeta[]> {
@@ -97,47 +46,11 @@ export async function fetchRunningTrains(): Promise<TrainMeta[]> {
       body: JSON.stringify({ query: RUNNING_TRAINS_QUERY }),
     },
   );
-  return (body.data?.currentlyRunningTrains ?? []).map((t) => {
-    const first = t.first[0];
-    const last = t.last[0];
-    return {
-      key: trainKey(t.departureDate, t.trainNumber),
-      trainNumber: t.trainNumber,
-      departureDate: t.departureDate,
-      type: t.trainType.name,
-      category: toCategory(t.trainType.trainCategory.name),
-      commuterLine: t.commuterLineid || null,
-      operator: t.operator.shortCode,
-      origin: first ? { code: first.station.shortCode, time: first.scheduledTime } : null,
-      destination: last ? { code: last.station.shortCode, time: last.scheduledTime } : null,
-      delay: t.latest[0]?.differenceInMinutes ?? null,
-    };
-  });
+  return (body.data?.currentlyRunningTrains ?? []).map(parseRunningTrain);
 }
-
-interface RawStation {
-  stationShortCode: string;
-  stationName: string;
-  passengerTraffic: boolean;
-  countryCode: string;
-  longitude: number;
-  latitude: number;
-}
-
-/** Digitraffic names read "Helsinki asema"; the suffix adds nothing on a map. */
-export const cleanStationName = (name: string) => name.replace(/ asema$/, '');
 
 export async function fetchStations(): Promise<Station[]> {
-  const raw = await getJson<RawStation[]>('/v1/metadata/stations');
-  return raw
-    .filter((s) => s.countryCode === 'FI')
-    .map((s) => ({
-      code: s.stationShortCode,
-      name: cleanStationName(s.stationName),
-      passenger: s.passengerTraffic,
-      lng: s.longitude,
-      lat: s.latitude,
-    }));
+  return parseStations(await getJson<RawStation[]>('/v1/metadata/stations'));
 }
 
 export async function fetchTrain(departureDate: string, trainNumber: number) {

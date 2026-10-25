@@ -36,3 +36,17 @@ Kartta: © OpenMapTiles © OpenStreetMap.
 - `src/ui/` – kortti, alapaneeli/sivupaneeli, selite ja karttapainikkeet.
 - `src/lib/` – muotoilu ja aikataulun käsittely (testit vieressä).
 - `src/styles/` – värit (`palette.ts` kartalle, `app.css` käyttöliittymälle; pidä samoina).
+
+## Artifact-versio (puhelimella esikatseluun)
+
+claude.ai-artifact ajetaan suljetussa ympäristössä, joka ei saa yhteyttä Digitrafficiin eikä
+karttatiilipalvelimeen. Siksi artifact-versio toistaa tallennetta: sama käyttöliittymä, mutta
+data ja taustakartta pakataan sivun mukaan.
+
+```sh
+NODE_USE_ENV_PROXY=1 npm run data:artifact   # nauhoittaa ~8 min liikennettä, hakee aikataulut ja taustakartan
+npm run build:artifact                       # dist-artifact/artifact.html + files.json
+```
+
+Vaihto tehdään `vite.config.ts`:ssä: `src/data/digitraffic.ts` → `src/artifact/digitraffic.ts`
+(tallenteen toisto samoilla funktioilla) ja `src/map/style.ts` → `src/artifact/style.ts`.

@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useTrainStore } from '../data/trainStore';
 import { CATEGORIES, type Category } from '../data/types';
-import { CATEGORY_LABELS } from '../lib/format';
+import { CATEGORY_LABELS, formatTime } from '../lib/format';
 import { Chevron } from './icons';
 
 interface Props {
@@ -10,11 +10,17 @@ interface Props {
 }
 
 export function Legend({ hidden, onToggle }: Props) {
-  const { counts, ready, connected } = useTrainStore();
+  const { counts, ready, connected, recording } = useTrainStore();
   const [expanded, setExpanded] = useState(() => window.matchMedia('(min-width: 768px)').matches);
   const total = CATEGORIES.reduce((sum, c) => sum + counts[c], 0);
 
-  const status = !ready ? 'Haetaan junia…' : !connected ? 'Yhdistetään uudelleen…' : `${total} liikkeellä`;
+  const status = !ready
+    ? 'Haetaan junia…'
+    : recording
+      ? `${total} · tallenne`
+      : !connected
+        ? 'Yhdistetään uudelleen…'
+        : `${total} liikkeellä`;
 
   return (
     <section className="legend" aria-label="Junat kartalla">
@@ -25,7 +31,7 @@ export function Legend({ hidden, onToggle }: Props) {
         aria-controls="legend-list"
         onClick={() => setExpanded(!expanded)}
       >
-        <span className={`live-dot${ready && connected ? ' is-live' : ''}`} aria-hidden />
+        <span className={`live-dot${ready && connected && !recording ? ' is-live' : ''}`} aria-hidden />
         <span className="legend-title">Junat</span>
         <span className="legend-status" aria-live="polite">
           {status}
@@ -53,6 +59,14 @@ export function Legend({ hidden, onToggle }: Props) {
             <span className="glyph is-late" aria-hidden />
             Yli 5 min myöhässä
           </li>
+          {recording && (
+            <li className="legend-recording">
+              Esikatselu: junat liikkuvat tallenteelta{' '}
+              {new Date(recording.start).toLocaleDateString('fi-FI', { timeZone: 'Europe/Helsinki' })} klo{' '}
+              {formatTime(new Date(recording.start).toISOString())}–{formatTime(new Date(recording.end).toISOString())},
+              joka toistuu alusta.
+            </li>
+          )}
         </ul>
       )}
     </section>
