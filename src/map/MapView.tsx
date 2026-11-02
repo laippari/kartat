@@ -74,7 +74,7 @@ export function MapView(props: Props) {
     });
     mapRef.current = map;
     // Handle for poking at the map from the console while developing and testing.
-    if (import.meta.env.DEV || import.meta.env.MODE === 'artifact') Object.assign(window, { __map: map });
+    if (import.meta.env.DEV || import.meta.env.MODE === 'artifact') Object.assign(window, { __map: map, __trains: trainStore });
     map.touchZoomRotate.disableRotation();
     map.keyboard.disableRotation();
     const attribution = new maplibregl.AttributionControl({
@@ -174,7 +174,14 @@ export function MapView(props: Props) {
         features.push({
           type: 'Feature',
           geometry: { type: 'Point', coordinates: t.position },
-          properties: { key: t.key, cat, label: mapLabel(t.meta, t.location.trainNumber), late: isLate(t.meta?.delay) },
+          properties: {
+            key: t.key,
+            cat,
+            label: mapLabel(t.meta, t.location.trainNumber),
+            // Delays are marked for passenger trains only: freight runs off timetable
+            // so often that the rings would drown out the ones people care about.
+            late: (cat === 'long-distance' || cat === 'commuter') && isLate(t.meta?.delay),
+          },
         });
       }
       source.setData({ type: 'FeatureCollection', features });

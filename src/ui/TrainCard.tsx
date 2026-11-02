@@ -24,7 +24,10 @@ export function TrainCard({ trainKey, pinned, onOpen }: Props) {
   return (
     <div className={`card${pinned ? ' is-pinned' : ''}`}>
       <div className="card-head">
-        <span className="card-title">{title}</span>
+        <span className="card-title">
+          <span className={`glyph is-${trainStore.categoryOf(trainKey)}`} aria-hidden />
+          {title}
+        </span>
         {location && <span className="card-speed">{location.speed} km/h</span>}
       </div>
       {kind && <div className="card-kind">{kind}</div>}

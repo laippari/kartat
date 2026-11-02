@@ -23,7 +23,12 @@ export function TrainHeader({ trainKey, following, onFollow, onClose }: HeaderPr
     <div className="train-header">
       <div className="train-header-text">
         <h2 className="train-title">{meta ? trainTitle(meta) : `Juna ${number}`}</h2>
-        {kind && <p className="train-kind">{kind.join(' · ')}</p>}
+        {kind && (
+          <p className="train-kind">
+            <span className={`glyph is-${trainStore.categoryOf(trainKey)}`} aria-hidden />
+            {kind.join(' · ')}
+          </p>
+        )}
         {meta?.origin && meta.destination && (
           <p className="train-route">
             {stationName(meta.origin.code)}

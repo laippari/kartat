@@ -15,15 +15,32 @@ const zoomed = (stops: [number, number][]): ExpressionSpecification => [
   ...stops.flat(),
 ];
 
-const dotRadius = zoomed([
-  [4, 2.2],
-  [6, 3],
-  [8, 4],
-  [11, 6],
-  [14, 8],
-]);
+// Trains grow faster than stations as you zoom in, so up close they read as
+// vehicles and the stations as small markers on the line.
+const DOT_RADIUS: [number, number][] = [
+  [4, 3.3],
+  [6, 4],
+  [8, 4.8],
+  [10, 6],
+  [12, 7.5],
+  [14, 9.5],
+  [16, 11],
+];
+const dotRadius = zoomed(DOT_RADIUS);
+/** A radius a few pixels outside the dot, for rings drawn around it. */
+const ringRadius = (extra: number) => zoomed(DOT_RADIUS.map(([z, r]) => [z, r + extra]));
 
-const isFilled: ExpressionSpecification = ['match', ['get', 'cat'], ['long-distance', 'commuter'], true, false];
+const categoryColor = (other: string): ExpressionSpecification => [
+  'match',
+  ['get', 'cat'],
+  'long-distance',
+  c.ink,
+  'commuter',
+  c.lake,
+  'cargo',
+  c.spruce,
+  other,
+];
 
 /** A small square: stations read as stops on the line, not as trains. */
 function stationIcon(size: number, stroke: string) {
@@ -46,7 +63,7 @@ export function addStationLayers(map: MapLibre) {
   // such as Nummela on the Hanko line) only once zoomed in close.
   for (const passenger of [false, true]) {
     const id = passenger ? 'passenger' : 'other';
-    const icon = stationIcon(8, passenger ? c.inkSoft : c.rail);
+    const icon = stationIcon(7, passenger ? c.inkSoft : c.rail);
     map.addImage(`station-${id}`, icon.image, icon.options);
     map.addLayer({
       id: `stations-${id}`,
@@ -57,9 +74,9 @@ export function addStationLayers(map: MapLibre) {
       layout: {
         'icon-image': `station-${id}`,
         'icon-size': zoomed([
-          [8, 0.7],
+          [8, 0.75],
           [12, 1],
-          [16, 1.3],
+          [16, 1.2],
         ]),
         'icon-allow-overlap': true,
         'text-field': ['step', ['zoom'], '', passenger ? 9 : 12, ['get', 'name']],
@@ -99,28 +116,31 @@ export function addTrainLayers(map: MapLibre) {
     promoteId: 'key',
   });
 
-  // Soft disc behind the hovered or selected train.
+  const selected: ExpressionSpecification = ['boolean', ['feature-state', 'selected'], false];
+  const hovered: ExpressionSpecification = ['boolean', ['feature-state', 'hover'], false];
+
+  // Heather disc and ring around the selected train; a faint grey one on hover.
   map.addLayer({
     id: 'trains-halo',
     type: 'circle',
     source: TRAIN_SOURCE,
     paint: {
-      'circle-radius': zoomed([
-        [4, 9],
-        [8, 12],
-        [14, 18],
-      ]),
-      'circle-color': c.ink,
-      'circle-opacity': [
-        'case',
-        ['boolean', ['feature-state', 'selected'], false],
-        0.16,
-        ['boolean', ['feature-state', 'hover'], false],
-        0.09,
-        0,
-      ],
-      'circle-opacity-transition': { duration: 150 },
+      'circle-radius': ringRadius(7),
+      'circle-color': ['case', selected, c.heather, c.ink],
+      'circle-opacity': ['case', selected, 0.16, hovered, 0.08, 0],
+      'circle-stroke-color': c.heather,
+      'circle-stroke-width': 1.5,
+      'circle-stroke-opacity': ['case', selected, 0.9, 0],
     },
+  });
+
+  // A lingonberry ring, kept apart from the dot by its pale outline, marks a late train.
+  map.addLayer({
+    id: 'trains-late',
+    type: 'circle',
+    source: TRAIN_SOURCE,
+    filter: ['get', 'late'],
+    paint: { 'circle-radius': ringRadius(3), 'circle-color': c.lingon },
   });
 
   map.addLayer({
@@ -129,18 +149,10 @@ export function addTrainLayers(map: MapLibre) {
     source: TRAIN_SOURCE,
     paint: {
       'circle-radius': dotRadius,
-      'circle-color': ['match', ['get', 'cat'], 'long-distance', c.ink, 'commuter', c.commuter, c.paper],
-      'circle-stroke-color': [
-        'case',
-        ['get', 'late'],
-        c.signal,
-        isFilled,
-        c.paper,
-        ['==', ['get', 'cat'], 'cargo'],
-        c.ink,
-        c.muted,
-      ],
-      'circle-stroke-width': ['case', ['get', 'late'], 2, isFilled, 1, 1.4],
+      'circle-color': categoryColor(c.paper),
+      // Filled dots get a pale outline to lift them off the rails; the rest are hollow rings.
+      'circle-stroke-color': ['match', ['get', 'cat'], 'other', c.muted, c.paper],
+      'circle-stroke-width': ['match', ['get', 'cat'], 'other', 1.6, 1.5],
     },
   });
 
@@ -157,17 +169,17 @@ export function addTrainLayers(map: MapLibre) {
         [14, 12.5],
       ]),
       'text-anchor': 'left',
-      'text-offset': [0.9, 0],
+      'text-offset': [1.1, 0],
       'text-optional': true,
     },
-    paint: { 'text-color': c.ink, 'text-halo-color': c.paper, 'text-halo-width': 1.6 },
+    paint: { 'text-color': categoryColor(c.muted), 'text-halo-color': c.paper, 'text-halo-width': 1.6 },
   });
 
   map.addLayer({
     id: TRAIN_HIT_LAYER,
     type: 'circle',
     source: TRAIN_SOURCE,
-    paint: { 'circle-radius': 16, 'circle-opacity': 0 },
+    paint: { 'circle-radius': ringRadius(12), 'circle-opacity': 0 },
   });
 }
 

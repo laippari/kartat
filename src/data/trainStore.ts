@@ -7,6 +7,7 @@ import {
   recording,
   subscribeLocations,
 } from './digitraffic';
+import { nextMotion, offsetMetres, positionAt, type Motion } from './motion';
 import { CATEGORIES, type Category, type Station, type TrainKey, type TrainLocation, type TrainMeta } from './types';
 
 /** A train that has not reported its position for this long is no longer shown. */
@@ -22,11 +23,7 @@ const reducedMotion =
 
 interface Tracked {
   location: TrainLocation;
-  from: [number, number];
-  to: [number, number];
-  start: number;
-  duration: number;
-  receivedAt: number;
+  motion: Motion;
 }
 
 export interface Snapshot {
@@ -119,37 +116,22 @@ class TrainStore {
     const existing = this.tracked.get(location.key);
     if (existing && location.timestamp <= existing.location.timestamp) return;
 
-    const target: [number, number] = [location.lng, location.lat];
+    // Reduced motion: dots jump from fix to fix instead of gliding.
+    const fix = { lng: location.lng, lat: location.lat, speed: reducedMotion ? 0 : location.speed };
+    const age = clockNow() - location.timestamp;
+    const jump = existing && Math.hypot(...offsetMetres(existing.location, fix)) > JUMP_METRES;
+    this.tracked.set(location.key, {
+      location,
+      motion: nextMotion(existing?.motion, fix, now, age, reducedMotion || jump),
+    });
+
     if (!existing) {
-      this.tracked.set(location.key, {
-        location,
-        from: target,
-        to: target,
-        start: now,
-        duration: 0,
-        receivedAt: now,
-      });
       const fresh = clockNow() - location.timestamp < NEW_TRAIN_MS;
       if (!initial && fresh && !this.running.has(location.key)) {
         this.pending.set(location.key, clockNow());
         this.scheduleMetaRefresh();
       }
-      return;
     }
-
-    // Glide from wherever the dot is drawn now to the new fix, over roughly the
-    // interval between fixes, so movement looks continuous rather than jumpy.
-    const interval = now - existing.receivedAt;
-    const from = this.positionOf(existing, now);
-    const jump = distanceMetres(from, target) > JUMP_METRES;
-    this.tracked.set(location.key, {
-      location,
-      from,
-      to: target,
-      start: now,
-      duration: reducedMotion || jump ? 0 : Math.min(Math.max(interval, 600), 5000),
-      receivedAt: now,
-    });
   }
 
   private scheduleMetaRefresh() {
@@ -161,10 +143,8 @@ class TrainStore {
     }, 5000);
   }
 
-  private positionOf(t: Tracked, now: number): [number, number] {
-    if (t.duration === 0) return t.to;
-    const p = Math.min((now - t.start) / t.duration, 1);
-    return [t.from[0] + (t.to[0] - t.from[0]) * p, t.from[1] + (t.to[1] - t.from[1]) * p];
+  private positionOf(t: Tracked, now: number) {
+    return positionAt(t.motion, now);
   }
 
   private isFresh(t: Tracked) {
@@ -207,13 +187,6 @@ class TrainStore {
     const changed = CATEGORIES.some((c) => counts[c] !== this.snapshot.counts[c]);
     if (changed) this.publish({ counts });
   }
-}
-
-function distanceMetres([lng1, lat1]: [number, number], [lng2, lat2]: [number, number]) {
-  const k = Math.PI / 180;
-  const x = (lng2 - lng1) * k * Math.cos(((lat1 + lat2) / 2) * k);
-  const y = (lat2 - lat1) * k;
-  return Math.hypot(x, y) * 6_371_000;
 }
 
 export const trainStore = new TrainStore();

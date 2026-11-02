@@ -57,7 +57,7 @@ export function Legend({ hidden, onToggle }: Props) {
           ))}
           <li className="legend-note">
             <span className="glyph is-late" aria-hidden />
-            Yli 5 min myöhässä
+            Matkustajajuna yli 5 min myöhässä
           </li>
           {recording && (
             <li className="legend-recording">
