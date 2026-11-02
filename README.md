@@ -39,8 +39,8 @@ Kartta: © OpenMapTiles © OpenStreetMap.
 
 ## Rakenne
 
-- `src/data/` – rajapintakutsut (`digitraffic.ts`) ja junien tila (`trainStore.ts`). Sijainnit liu'utetaan
-  päivitysten välillä, jotta pisteet liikkuvat tasaisesti.
+- `src/data/` – rajapintakutsut (`digitraffic.ts`, `metro.ts`) ja junien tila (`trainStore.ts`).
+  Sijaintien välillä piste jatkaa junan nopeudella (`motion.ts`) ja pysyy raiteella (`track.ts`).
 - `src/map/` – MapLibre-kartta, tyyli ja kerrokset.
 - `src/ui/` – kortti, alapaneeli/sivupaneeli, selite ja karttapainikkeet.
 - `src/lib/` – muotoilu ja aikataulun käsittely (testit vieressä).

@@ -8,7 +8,8 @@ import {
   subscribeLocations,
 } from './digitraffic';
 import { loadMetroNetwork, subscribeMetro, terminiOf, type MetroNetwork } from './metro';
-import { nextMotion, offsetMetres, positionAt, type Motion } from './motion';
+import { nextMotion, offsetMetres, positionAt, type LngLat, type Motion } from './motion';
+import { linesOf, TrackIndex } from './track';
 import {
   CATEGORIES,
   isMetroKey,
@@ -23,6 +24,8 @@ import {
 const STALE_MS = 10 * 60_000;
 /** Metro trains report every second while running, so silence means the run has ended. */
 const METRO_STALE_MS = 60_000;
+/** Drawn trains stick to a track this close; farther off they are somewhere the network does not cover. */
+const SNAP_METRES = 60;
 const META_REFRESH_MS = 60_000;
 /** A position this recent from a train we do not know yet means it just set off. */
 const NEW_TRAIN_MS = 30_000;
@@ -63,6 +66,8 @@ class TrainStore {
   private metaLoaded = false;
   stations = new Map<string, Station>();
   metro: MetroNetwork | null = null;
+  private railTracks: TrackIndex | null = null;
+  private metroTracks: TrackIndex | null = null;
 
   private snapshot: Snapshot = { ready: false, connected: false, counts: emptyCounts(), version: 0, recording: null };
   private listeners = new Set<() => void>();
@@ -102,9 +107,15 @@ class TrainStore {
       (connected) => this.publish({ connected }),
     );
 
+    fetch(new URL('data/rail-network.geojson', document.baseURI))
+      .then((res) => res.json())
+      .then((network: GeoJSON.FeatureCollection) => (this.railTracks = new TrackIndex(linesOf(network))))
+      .catch(console.error);
+
     loadMetroNetwork()
       .then((network) => {
         this.metro = network;
+        this.metroTracks = new TrackIndex(network.lines.map((l) => l.coordinates));
         this.publish({ version: this.snapshot.version + 1 });
       })
       .catch(console.error);
@@ -166,8 +177,11 @@ class TrainStore {
     }, 5000);
   }
 
-  private positionOf(t: Tracked, now: number) {
-    return positionAt(t.motion, now);
+  /** Where to draw the train: its dead-reckoned position, kept on the track. */
+  private positionOf(t: Tracked, now: number): LngLat {
+    const raw = positionAt(t.motion, now);
+    const tracks = isMetroKey(t.location.key) ? this.metroTracks : this.railTracks;
+    return tracks ? tracks.snap(raw, SNAP_METRES) : raw;
   }
 
   private isFresh(t: Tracked) {

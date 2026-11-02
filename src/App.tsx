@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState, type CSSProperties } from 'react';
 import { MapView, type MapApi, type MapPadding } from './map/MapView';
 import { trainStore, useTrainStore } from './data/trainStore';
-import { isMetroKey, TRAIN_CATEGORIES, type Category, type TrainKey } from './data/types';
+import { isMetroKey, type Category, type TrainKey } from './data/types';
 import { Legend } from './ui/Legend';
 import { MapControls } from './ui/MapControls';
 import { Sheet } from './ui/Sheet';
@@ -115,16 +115,6 @@ export function App() {
     updateHidden(next);
   };
 
-  // One switch for all trains: off if any kind is showing, otherwise all back on.
-  const toggleTrains = () => {
-    const next = new Set(hidden);
-    const anyShown = TRAIN_CATEGORIES.some((c) => !hidden.has(c));
-    for (const c of TRAIN_CATEGORIES) {
-      if (anyShown) next.add(c);
-      else next.delete(c);
-    }
-    updateHidden(next);
-  };
 
   const locate = () =>
     new Promise<void>((resolve, reject) => {
@@ -164,7 +154,7 @@ export function App() {
         }}
       />
 
-      <Legend hidden={hidden} onToggle={toggleCategory} onToggleTrains={toggleTrains} />
+      <Legend hidden={hidden} onToggle={toggleCategory} />
 
       <MapControls
         onZoomIn={() => map.current?.zoomIn()}

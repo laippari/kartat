@@ -6,9 +6,11 @@ import {
   addMetroLayers,
   addStationLayers,
   addTrainLayers,
+  dotRadiusAt,
   METRO_LAYERS,
   METRO_SOURCE,
   STATION_SOURCE,
+  setFocusedTrain,
   stationsToGeoJson,
   TRAIN_HIT_LAYER,
   TRAIN_SOURCE,
@@ -18,14 +20,21 @@ import { trainStore, useTrainStore } from '../data/trainStore';
 import type { Category, TrainKey } from '../data/types';
 import { isLate, mapLabel } from '../lib/format';
 
+/** Delays are marked for passenger trains only: freight runs off timetable so often
+ * that the rings would drown out the ones people care about. */
+const isLateForMap = (cat: Category, delay: number | null | undefined) =>
+  (cat === 'long-distance' || cat === 'commuter') && isLate(delay);
+
 // The rail network, Hanko to Kolari, rather than all of Finland: the far north has no lines.
 const RAIL_NETWORK: [[number, number], [number, number]] = [
   [21.0, 59.8],
   [30.6, 67.5],
 ];
 
-/** Redraw at most this often; GPS fixes arrive every few seconds anyway. */
+/** Update the map's train layer at most this often; the selected train and camera move every frame. */
 const FRAME_MS = 1000 / 30;
+/** How quickly a followed train's camera catches up: time constant of an exponential glide. */
+const FOLLOW_MS = 250;
 
 export interface MapPadding {
   right: number;
@@ -57,6 +66,7 @@ interface Props {
 export function MapView(props: Props) {
   const container = useRef<HTMLDivElement>(null);
   const anchor = useRef<HTMLDivElement>(null);
+  const focus = useRef<HTMLDivElement>(null);
   const mapRef = useRef<MapLibre | null>(null);
   const latest = useRef(props);
   latest.current = props;
@@ -93,8 +103,8 @@ export function MapView(props: Props) {
 
     let userMarker: maplibregl.Marker | null = null;
     let hovered: TrainKey | null = null;
-    const setState = (key: TrainKey | null, state: 'hover' | 'selected', value: boolean) => {
-      if (key && map.getSource(TRAIN_SOURCE)) map.setFeatureState({ source: TRAIN_SOURCE, id: key }, { [state]: value });
+    const setHover = (key: TrainKey | null, value: boolean) => {
+      if (key && map.getSource(TRAIN_SOURCE)) map.setFeatureState({ source: TRAIN_SOURCE, id: key }, { hover: value });
     };
 
     map.on('load', () => {
@@ -131,14 +141,14 @@ export function MapView(props: Props) {
       const key = (e.features?.[0]?.properties as TrainFeatureProps | undefined)?.key ?? null;
       map.getCanvas().style.cursor = key ? 'pointer' : '';
       if (key === hovered) return;
-      setState(hovered, 'hover', false);
-      setState(key, 'hover', true);
+      setHover(hovered, false);
+      setHover(key, true);
       hovered = key;
       latest.current.onHover(key);
     });
     map.on('mouseleave', TRAIN_HIT_LAYER, () => {
       map.getCanvas().style.cursor = '';
-      setState(hovered, 'hover', false);
+      setHover(hovered, false);
       hovered = null;
       latest.current.onHover(null);
     });
@@ -162,40 +172,77 @@ export function MapView(props: Props) {
 
     map.on('dragstart', () => latest.current.onUserMove());
 
-    // Animation loop: move the dots, keep the camera on a followed train and
-    // keep the floating card pinned above its train.
+    // Animation loop. The map's train layer is rebuilt at 30 fps; its data goes
+    // through a worker and shows up a frame or two later. The camera, the
+    // selected train and its card are moved every frame, all in this one
+    // callback, so a followed train sits still on screen while the map moves.
     let frame = 0;
-    let last = 0;
+    let lastFrame = performance.now();
+    let lastData = 0;
     const tick = (now: number) => {
       frame = requestAnimationFrame(tick);
-      if (now - last < FRAME_MS) return;
-      last = now;
+      const dt = Math.min(now - lastFrame, 100);
+      lastFrame = now;
       const source = map.getSource(TRAIN_SOURCE) as GeoJSONSource | undefined;
       if (!source) return;
-      const { hidden, following, selectedKey, cardKey } = latest.current;
+      const { hidden, following, selectedKey, cardKey, padding } = latest.current;
 
-      const features: GeoJSON.Feature<GeoJSON.Point, TrainFeatureProps>[] = [];
-      for (const t of trainStore.visible(now)) {
-        const cat = t.meta?.category ?? 'other';
-        if (hidden.has(cat) && t.key !== selectedKey) continue;
-        features.push({
-          type: 'Feature',
-          geometry: { type: 'Point', coordinates: t.position },
-          properties: {
-            key: t.key,
-            cat,
-            label: mapLabel(t.meta, t.location.trainNumber),
-            // Delays are marked for passenger trains only: freight runs off timetable
-            // so often that the rings would drown out the ones people care about.
-            late: (cat === 'long-distance' || cat === 'commuter') && isLate(t.meta?.delay),
+      if (now - lastData >= FRAME_MS) {
+        lastData = now;
+        const features: GeoJSON.Feature<GeoJSON.Point, TrainFeatureProps>[] = [];
+        for (const t of trainStore.visible(now)) {
+          const cat = t.meta?.category ?? 'other';
+          if (hidden.has(cat) && t.key !== selectedKey) continue;
+          features.push({
+            type: 'Feature',
+            geometry: { type: 'Point', coordinates: t.position },
+            properties: {
+              key: t.key,
+              cat,
+              label: mapLabel(t.meta, t.location.trainNumber),
+              late: isLateForMap(cat, t.meta?.delay),
+            },
+          });
+        }
+        source.setData({ type: 'FeatureCollection', features });
+      }
+
+      const selected = selectedKey ? trainStore.getDrawnPosition(selectedKey, now) : undefined;
+
+      // Glide the camera toward the train rather than pinning it: the glide is
+      // smooth whatever the frame rate, and eases in when following starts or
+      // the sheet changes the padding. Paused while the user pinches or zooms.
+      if (following && selected && !map.isMoving()) {
+        const k = 1 - Math.exp(-dt / FOLLOW_MS);
+        const center = map.getCenter();
+        const { right = 0, bottom = 0 } = map.getPadding();
+        map.jumpTo({
+          center: [center.lng + (selected[0] - center.lng) * k, center.lat + (selected[1] - center.lat) * k],
+          padding: {
+            top: 0,
+            left: 0,
+            right: right + (padding.right - right) * k,
+            bottom: bottom + (padding.bottom - bottom) * k,
           },
         });
       }
-      source.setData({ type: 'FeatureCollection', features });
 
-      if (following && selectedKey) {
-        const position = trainStore.getDrawnPosition(selectedKey, now);
-        if (position && !map.isMoving()) map.jumpTo({ center: position });
+      const focusEl = focus.current;
+      if (focusEl) {
+        const meta = selectedKey ? trainStore.getMeta(selectedKey) : undefined;
+        if (selected && selectedKey) {
+          const p = map.project(selected);
+          const cat = meta?.category ?? 'other';
+          focusEl.style.transform = `translate(${p.x}px, ${p.y}px)`;
+          focusEl.style.setProperty('--r', `${dotRadiusAt(map.getZoom())}px`);
+          focusEl.dataset.cat = cat;
+          focusEl.dataset.late = String(isLateForMap(cat, meta?.delay));
+          const label = map.getZoom() >= 9 ? mapLabel(meta, Number(selectedKey.split('/')[1])) : '';
+          if (focusEl.lastElementChild!.textContent !== label) focusEl.lastElementChild!.textContent = label;
+          focusEl.hidden = false;
+        } else {
+          focusEl.hidden = true;
+        }
       }
 
       const el = anchor.current;
@@ -245,25 +292,23 @@ export function MapView(props: Props) {
   const { selectedKey, padding, following } = props;
   useEffect(() => {
     const map = mapRef.current;
-    if (!map || !selectedKey) return;
-    const set = (value: boolean) => {
-      if (map.getSource(TRAIN_SOURCE)) map.setFeatureState({ source: TRAIN_SOURCE, id: selectedKey }, { selected: value });
-    };
-    set(true);
-    return () => set(false);
-  }, [selectedKey]);
+    if (map && loaded) setFocusedTrain(map, selectedKey);
+  }, [selectedKey, loaded]);
 
+  // While following, the animation loop eases the padding along with the camera.
   useEffect(() => {
     const map = mapRef.current;
-    if (!map) return;
-    const next = { top: 0, left: 0, right: padding.right, bottom: padding.bottom };
-    if (following) map.easeTo({ padding: next, duration: 400 });
-    else map.setPadding(next);
+    if (!map || following) return;
+    map.easeTo({ padding: { top: 0, left: 0, right: padding.right, bottom: padding.bottom }, duration: 300 });
   }, [padding.right, padding.bottom, following]);
 
   return (
     <div className="map-wrap">
       <div className="map" ref={container} />
+      <div className="focus-train" ref={focus} hidden aria-hidden>
+        <span className="focus-dot" />
+        <span className="focus-label" />
+      </div>
       <div className="card-anchor" ref={anchor} hidden>
         {props.card}
       </div>

@@ -19,7 +19,7 @@ const zoomed = (stops: [number, number][]): ExpressionSpecification => [
 
 // Trains grow faster than stations as you zoom in, so up close they read as
 // vehicles and the stations as small markers on the line.
-const DOT_RADIUS: [number, number][] = [
+export const DOT_RADIUS: [number, number][] = [
   [4, 3.3],
   [6, 4],
   [8, 4.8],
@@ -29,6 +29,16 @@ const DOT_RADIUS: [number, number][] = [
   [16, 11],
 ];
 const dotRadius = zoomed(DOT_RADIUS);
+
+/** The same radius as the map draws, for a dot drawn outside the map. */
+export function dotRadiusAt(zoom: number) {
+  const i = DOT_RADIUS.findIndex(([z]) => z > zoom);
+  if (i === 0) return DOT_RADIUS[0][1];
+  if (i === -1) return DOT_RADIUS[DOT_RADIUS.length - 1][1];
+  const [z1, r1] = DOT_RADIUS[i - 1];
+  const [z2, r2] = DOT_RADIUS[i];
+  return r1 + ((r2 - r1) * (zoom - z1)) / (z2 - z1);
+}
 /** A radius a few pixels outside the dot, for rings drawn around it. */
 const ringRadius = (extra: number) => zoomed(DOT_RADIUS.map(([z, r]) => [z, r + extra]));
 
@@ -172,21 +182,16 @@ export function addTrainLayers(map: MapLibre) {
     promoteId: 'key',
   });
 
-  const selected: ExpressionSpecification = ['boolean', ['feature-state', 'selected'], false];
-  const hovered: ExpressionSpecification = ['boolean', ['feature-state', 'hover'], false];
-
-  // Heather disc and ring around the selected train; a faint grey one on hover.
+  // A faint disc behind the train under the pointer. The selected train is
+  // drawn outside the map instead (see MapView), with its heather ring.
   map.addLayer({
     id: 'trains-halo',
     type: 'circle',
     source: TRAIN_SOURCE,
     paint: {
       'circle-radius': ringRadius(7),
-      'circle-color': ['case', selected, c.heather, c.ink],
-      'circle-opacity': ['case', selected, 0.16, hovered, 0.08, 0],
-      'circle-stroke-color': c.heather,
-      'circle-stroke-width': 1.5,
-      'circle-stroke-opacity': ['case', selected, 0.9, 0],
+      'circle-color': c.ink,
+      'circle-opacity': ['case', ['boolean', ['feature-state', 'hover'], false], 0.08, 0],
     },
   });
 
@@ -237,6 +242,19 @@ export function addTrainLayers(map: MapLibre) {
     source: TRAIN_SOURCE,
     paint: { 'circle-radius': ringRadius(12), 'circle-opacity': 0 },
   });
+}
+
+const TRAIN_VISUAL_LAYERS = ['trains-halo', 'trains-late', 'trains-dot', 'trains-label'];
+
+/**
+ * Leaves one train out of the map's own drawing, so it can be drawn in step
+ * with the camera instead. It stays in the hit layer, so it can still be tapped.
+ */
+export function setFocusedTrain(map: MapLibre, key: string | null) {
+  const others: ExpressionSpecification = ['!=', ['get', 'key'], key ?? ''];
+  for (const id of TRAIN_VISUAL_LAYERS) {
+    map.setFilter(id, id === 'trains-late' ? ['all', ['get', 'late'], others] : others);
+  }
 }
 
 export interface TrainFeatureProps {

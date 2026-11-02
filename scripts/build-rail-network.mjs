@@ -7,8 +7,8 @@ import { writeFile } from 'node:fs/promises';
 
 const URL_ = 'https://rata.digitraffic.fi/infra-api/0.8/radat.geojson?srsName=crs:84';
 const OUT = new URL('../public/data/rail-network.geojson', import.meta.url);
-/** Degrees; about 20 m, invisible at the zoom levels this file is drawn at. */
-const TOLERANCE = 0.0002;
+/** Degrees; about 4 m, so trains can be kept on the line even zoomed in close. */
+const TOLERANCE = 0.00004;
 
 async function fetchWithRetry(url, attempts = 5) {
   for (let i = 1; ; i++) {
