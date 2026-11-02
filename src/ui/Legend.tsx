@@ -10,7 +10,7 @@ interface Props {
 }
 
 /** Passenger traffic first, then freight and the rest. */
-const ORDER: Category[] = ['long-distance', 'commuter', 'metro', 'cargo', 'other'];
+const ORDER: Category[] = ['long-distance', 'commuter', 'metro', 'tram', 'cargo', 'other'];
 
 export function Legend({ hidden, onToggle }: Props) {
   const { counts, ready, connected, recording } = useTrainStore();
@@ -26,7 +26,7 @@ export function Legend({ hidden, onToggle }: Props) {
         : `${total} liikkeellä`;
 
   return (
-    <section className="legend" aria-label="Junat ja metro kartalla">
+    <section className="legend" aria-label="Raideliikenne kartalla">
       <button
         type="button"
         className="legend-summary"
@@ -35,7 +35,7 @@ export function Legend({ hidden, onToggle }: Props) {
         onClick={() => setExpanded(!expanded)}
       >
         <span className={`live-dot${ready && connected && !recording ? ' is-live' : ''}`} aria-hidden />
-        <span className="legend-title">Junat ja metro</span>
+        <span className="legend-title">Raideliikenne</span>
         <span className="legend-status" aria-live="polite">
           {status}
         </span>
@@ -60,7 +60,7 @@ export function Legend({ hidden, onToggle }: Props) {
           ))}
           <li className="legend-note">
             <span className="glyph is-late" aria-hidden />
-            Matkustajajuna yli 5 min myöhässä
+            Juna tai ratikka yli 5 min myöhässä
           </li>
           {recording && (
             <li className="legend-recording">

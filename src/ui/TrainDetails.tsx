@@ -2,7 +2,7 @@ import { useMemo, useState } from 'react';
 import { stationName, trainStore } from '../data/trainStore';
 import { useTrainDetails } from '../data/useTrainDetails';
 import type { TrainKey } from '../data/types';
-import { ago, delayShort, formatTime, isLate, operatorName, trainTitle, typeName } from '../lib/format';
+import { ago, delayShort, formatTime, transitKind, isLate, operatorName, trainTitle, typeName } from '../lib/format';
 import { useNow } from '../lib/hooks';
 import { currentDelay, effectiveTime, mainRow, nextStop as findNextStop, toStops, visibleStops, type Stop } from '../lib/timetable';
 import { Close, Follow } from './icons';
@@ -17,12 +17,9 @@ interface HeaderProps {
 export function TrainHeader({ trainKey, following, onFollow, onClose }: HeaderProps) {
   const meta = trainStore.getMeta(trainKey);
   const number = Number(trainKey.split('/')[1]);
-  const kind =
-    meta &&
-    [
-      meta.metro ? 'Metro' : meta.commuterLine ? `Lähijuna ${meta.trainNumber}` : typeName(meta.type),
-      operatorName(meta.operator),
-    ];
+  const kind = meta?.transit
+    ? [transitKind(meta.transit)]
+    : meta && [meta.commuterLine ? `Lähijuna ${meta.trainNumber}` : typeName(meta.type), operatorName(meta.operator)];
 
   return (
     <div className="train-header">

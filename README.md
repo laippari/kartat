@@ -31,15 +31,18 @@ Kertaluonteinen asetus: repon *Settings → Pages → Build and deployment → S
 | Liikennepaikat | Digitraffic REST `metadata/stations` | Kerran |
 | Metrojen sijainnit | HSL, MQTT `/hfp/v2/journey/ongoing/vp/metro/#` | Live-virta WebSocketin yli, ei avainta |
 | Metrolinjat ja -asemat | HSL GTFS | Valmiiksi tiedostoon `public/data/metro.geojson` (`npm run data:metro`) |
+| Raitiovaunut, Helsinki | HSL, MQTT `/hfp/v2/journey/ongoing/vp/tram/#` | Live-virta, sama yhteys kuin metrolla |
+| Raitiovaunut, Tampere | ITS Factory Journeys API `vehicle-activity?lineRef=1,3` | Haetaan 3 s välein |
+| Raitiolinjat ja -pysäkit | HSL:n ja Nyssen GTFS | Valmiiksi tiedostoihin `public/data/tram-*.geojson` (`npm run data:trams`) |
 | Rataverkko (yleiskuva) | Digitraffic infra-api `radat.geojson` | Kevennetty valmiiksi tiedostoon `public/data/rail-network.geojson` (`npm run data:rail`) |
 | Taustakartta | OpenFreeMap (OpenMapTiles) | Oma tyyli `src/map/style.ts` |
 
-Junadata: Fintraffic / digitraffic.fi, CC BY 4.0. Metro: HSL, CC BY 4.0. Rataverkko: Väylävirasto / digitraffic.fi, CC BY 4.0.
+Junadata: Fintraffic / digitraffic.fi, CC BY 4.0. Metro ja raitiovaunut: HSL ja Tampereen joukkoliikenne Nysse (ITS Factory), CC BY 4.0. Rataverkko: Väylävirasto / digitraffic.fi, CC BY 4.0.
 Kartta: © OpenMapTiles © OpenStreetMap.
 
 ## Rakenne
 
-- `src/data/` – rajapintakutsut (`digitraffic.ts`, `metro.ts`) ja junien tila (`trainStore.ts`).
+- `src/data/` – rajapintakutsut (`digitraffic.ts`, `transit.ts`) ja junien tila (`trainStore.ts`).
   Sijaintien välillä piste jatkaa junan nopeudella (`motion.ts`) ja pysyy raiteella (`track.ts`).
 - `src/map/` – MapLibre-kartta, tyyli ja kerrokset.
 - `src/ui/` – kortti, alapaneeli/sivupaneeli, selite ja karttapainikkeet.

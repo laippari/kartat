@@ -12,6 +12,13 @@ describe('format', () => {
     expect(trainTitle({ type: 'IC', trainNumber: 27, commuterLine: null })).toBe('IC 27');
   });
 
+  it('names metros and trams by line', () => {
+    const run = { city: 'helsinki', route: '1007', direction: 1, start: '13:45' } as const;
+    const base = { type: '', trainNumber: 0, commuterLine: null };
+    expect(trainTitle({ ...base, transit: { ...run, mode: 'metro', line: 'M1' } })).toBe('M1');
+    expect(trainTitle({ ...base, transit: { ...run, mode: 'tram', line: '7' } })).toBe('Ratikka 7');
+  });
+
   it('describes delays', () => {
     expect(delayText(0)).toBe('Aikataulussa');
     expect(delayText(4)).toBe('4 min myöhässä');

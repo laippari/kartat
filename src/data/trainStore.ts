@@ -7,13 +7,22 @@ import {
   recording,
   subscribeLocations,
 } from './digitraffic';
-import { loadMetroNetwork, subscribeMetro, terminiOf, type MetroNetwork } from './metro';
+import {
+  loadNetwork,
+  NETWORK_FILES,
+  networkOf,
+  subscribeHsl,
+  subscribeTampere,
+  terminiOf,
+  type TransitNetwork,
+} from './transit';
 import { nextMotion, offsetMetres, positionAt, type LngLat, type Motion } from './motion';
 import { linesOf, TrackIndex } from './track';
 import {
   CATEGORIES,
-  isMetroKey,
+  isTransitKey,
   type Category,
+  type NetworkId,
   type Station,
   type TrainKey,
   type TrainLocation,
@@ -22,8 +31,8 @@ import {
 
 /** A train that has not reported its position for this long is no longer shown. */
 const STALE_MS = 10 * 60_000;
-/** Metro trains report every second while running, so silence means the run has ended. */
-const METRO_STALE_MS = 60_000;
+/** Metros and trams report every few seconds while running, so silence means the run has ended. */
+const TRANSIT_STALE_MS = 60_000;
 /** Drawn trains stick to a track this close; farther off they are somewhere the network does not cover. */
 const SNAP_METRES = 60;
 const META_REFRESH_MS = 60_000;
@@ -65,9 +74,10 @@ class TrainStore {
   private pending = new Map<TrainKey, number>();
   private metaLoaded = false;
   stations = new Map<string, Station>();
-  metro: MetroNetwork | null = null;
+  /** Metro and tram lines and stops, as they load. */
+  networks = new Map<NetworkId, TransitNetwork>();
   private railTracks: TrackIndex | null = null;
-  private metroTracks: TrackIndex | null = null;
+  private transitTracks = new Map<NetworkId, TrackIndex>();
 
   private snapshot: Snapshot = { ready: false, connected: false, counts: emptyCounts(), version: 0, recording: null };
   private listeners = new Set<() => void>();
@@ -112,17 +122,23 @@ class TrainStore {
       .then((network: GeoJSON.FeatureCollection) => (this.railTracks = new TrackIndex(linesOf(network))))
       .catch(console.error);
 
-    loadMetroNetwork()
-      .then((network) => {
-        this.metro = network;
-        this.metroTracks = new TrackIndex(network.lines.map((l) => l.coordinates));
-        this.publish({ version: this.snapshot.version + 1 });
-      })
-      .catch(console.error);
-    subscribeMetro((location, meta) => {
-      if (!this.meta.has(meta.key)) this.meta.set(meta.key, meta);
+    for (const [id, file] of Object.entries(NETWORK_FILES) as [NetworkId, string][]) {
+      loadNetwork(file)
+        .then((network) => {
+          this.networks.set(id, network);
+          this.transitTracks.set(id, new TrackIndex(network.lines.map((l) => l.coordinates)));
+          this.publish({ version: this.snapshot.version + 1 });
+        })
+        .catch(console.error);
+    }
+    const onTransit = (location: TrainLocation, meta: TrainMeta) => {
+      const known = this.meta.get(meta.key);
+      if (known) known.delay = meta.delay;
+      else this.meta.set(meta.key, meta);
       this.upsert(location);
-    });
+    };
+    subscribeHsl(onTransit);
+    subscribeTampere(onTransit);
 
     window.setInterval(() => this.refreshMeta(), META_REFRESH_MS);
     window.setInterval(() => this.publishCounts(), 2000);
@@ -161,7 +177,7 @@ class TrainStore {
 
     if (!existing) {
       const fresh = clockNow() - location.timestamp < NEW_TRAIN_MS;
-      if (!initial && fresh && !isMetroKey(location.key) && !this.running.has(location.key)) {
+      if (!initial && fresh && !isTransitKey(location.key) && !this.running.has(location.key)) {
         this.pending.set(location.key, clockNow());
         this.scheduleMetaRefresh();
       }
@@ -180,12 +196,13 @@ class TrainStore {
   /** Where to draw the train: its dead-reckoned position, kept on the track. */
   private positionOf(t: Tracked, now: number): LngLat {
     const raw = positionAt(t.motion, now);
-    const tracks = isMetroKey(t.location.key) ? this.metroTracks : this.railTracks;
+    const transit = this.meta.get(t.location.key)?.transit;
+    const tracks = transit ? this.transitTracks.get(networkOf(transit)) : this.railTracks;
     return tracks ? tracks.snap(raw, SNAP_METRES) : raw;
   }
 
   private isFresh(t: Tracked) {
-    if (isMetroKey(t.location.key)) return clockNow() - t.location.timestamp < METRO_STALE_MS;
+    if (isTransitKey(t.location.key)) return clockNow() - t.location.timestamp < TRANSIT_STALE_MS;
     if (clockNow() - t.location.timestamp > STALE_MS) return false;
     // Without metadata there is nothing to filter by; better to show every train.
     if (!this.metaLoaded) return true;
@@ -194,9 +211,10 @@ class TrainStore {
 
   getMeta(key: TrainKey) {
     const meta = this.meta.get(key);
-    // Metro runs learn their end stations once the network has loaded.
-    if (meta?.metro && !meta.origin && this.metro) {
-      const termini = terminiOf(this.metro, meta.metro.line, meta.metro.direction);
+    // Metro and tram runs learn their end stops once their network has loaded.
+    const network = meta?.transit && this.networks.get(networkOf(meta.transit));
+    if (meta?.transit && !meta.origin && network) {
+      const termini = terminiOf(network, meta.transit);
       if (termini) {
         meta.origin = { code: termini.first, time: '' };
         meta.destination = { code: termini.last, time: '' };
@@ -242,5 +260,12 @@ export function useTrainStore() {
   return useSyncExternalStore(trainStore.subscribe, trainStore.getSnapshot);
 }
 
-export const stationName = (code: string) =>
-  trainStore.stations.get(code)?.name ?? trainStore.metro?.stations.get(code)?.name ?? code;
+export function stationName(code: string) {
+  const station = trainStore.stations.get(code);
+  if (station) return station.name;
+  for (const network of trainStore.networks.values()) {
+    const stop = network.stations.get(code);
+    if (stop) return stop.name;
+  }
+  return code;
+}

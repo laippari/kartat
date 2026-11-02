@@ -1,16 +1,39 @@
 export type TrainCategory = 'long-distance' | 'commuter' | 'cargo' | 'other';
-export type Category = TrainCategory | 'metro';
+export type TransitMode = 'metro' | 'tram';
+export type Category = TrainCategory | TransitMode;
 
 export const TRAIN_CATEGORIES: TrainCategory[] = ['long-distance', 'commuter', 'cargo', 'other'];
-export const CATEGORIES: Category[] = [...TRAIN_CATEGORIES, 'metro'];
+export const CATEGORIES: Category[] = [...TRAIN_CATEGORIES, 'metro', 'tram'];
 
-/** Identifies one run: the same train number repeats every day. Metro runs start with "metro/". */
+/** The city rail networks, each drawn from its own file and followed on its own tracks. */
+export type NetworkId = 'metro' | 'tram-helsinki' | 'tram-tampere';
+
+/**
+ * Identifies one run: the same train number repeats every day. Metro and tram
+ * runs start with "metro/" or "tram/".
+ */
 export type TrainKey = string;
 
 export const trainKey = (departureDate: string, trainNumber: number): TrainKey =>
   `${departureDate}/${trainNumber}`;
 
-export const isMetroKey = (key: TrainKey) => key.startsWith('metro/');
+export const isTransitKey = (key: TrainKey) => key.startsWith('metro/') || key.startsWith('tram/');
+
+/** A metro or tram run. */
+export interface Transit {
+  mode: TransitMode;
+  city: 'helsinki' | 'tampere';
+  /** What passengers call it: "M1", "7". */
+  line: string;
+  /** GTFS route id, e.g. "1007"; Tampere's realtime feed only gives the line. */
+  route: string;
+  /** 1 or 2. */
+  direction: number;
+  /** Departure from the first stop, "13:45". */
+  start: string;
+  /** Last stop's code, where the feed says it (Tampere). */
+  destination?: string;
+}
 
 export interface StopRef {
   code: string;
@@ -30,8 +53,8 @@ export interface TrainMeta {
   destination: StopRef | null;
   /** Minutes behind schedule at the latest recorded station, null if unknown. */
   delay: number | null;
-  /** Metro runs only. */
-  metro?: { line: string; direction: number; start: string };
+  /** Metro and tram runs only. */
+  transit?: Transit;
 }
 
 export interface TrainLocation {

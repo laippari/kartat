@@ -17,6 +17,7 @@
   --lingon: #cc4441;
   --lingon-text: #b4383c;
   --ruska: #d27a26;
+  --kaarna: #6f5a4a;
   --lingon-on-ink: #ef8f86;
   --on-ink-muted: #aca89f;
 
@@ -112,6 +113,11 @@ button {
 }
 
 .focus-train[data-cat='cargo'] {
+  --fill: var(--kaarna);
+  --label: var(--kaarna);
+}
+
+.focus-train[data-cat='tram'] {
   --fill: var(--spruce);
   --label: #326c41;
 }
@@ -437,6 +443,10 @@ button {
 }
 
 .glyph.is-cargo {
+  background: var(--kaarna);
+}
+
+.glyph.is-tram {
   background: var(--spruce);
 }
 

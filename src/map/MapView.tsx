@@ -3,27 +3,30 @@ import maplibregl, { type GeoJSONSource, type Map as MapLibre } from 'maplibre-g
 import 'maplibre-gl/dist/maplibre-gl.css';
 import { mapStyle } from './style';
 import {
-  addMetroLayers,
   addStationLayers,
   addTrainLayers,
+  addTransitLayers,
   dotRadiusAt,
-  METRO_LAYERS,
-  METRO_SOURCE,
   STATION_SOURCE,
   setFocusedTrain,
   stationsToGeoJson,
   TRAIN_HIT_LAYER,
   TRAIN_SOURCE,
+  transitLayers,
+  transitSource,
   type TrainFeatureProps,
 } from './layers';
 import { trainStore, useTrainStore } from '../data/trainStore';
-import type { Category, TrainKey } from '../data/types';
+import type { Category, NetworkId, TrainKey } from '../data/types';
 import { isLate, mapLabel } from '../lib/format';
 
-/** Delays are marked for passenger trains only: freight runs off timetable so often
- * that the rings would drown out the ones people care about. */
+/** Delays are marked for passenger trains and trams. Freight runs off timetable so
+ * often that the rings would drown out the ones people care about, and the metro
+ * feed has no delays. */
 const isLateForMap = (cat: Category, delay: number | null | undefined) =>
-  (cat === 'long-distance' || cat === 'commuter') && isLate(delay);
+  (cat === 'long-distance' || cat === 'commuter' || cat === 'tram') && isLate(delay);
+
+const NETWORKS: NetworkId[] = ['tram-helsinki', 'tram-tampere', 'metro'];
 
 // The rail network, Hanko to Kolari, rather than all of Finland: the far north has no lines.
 const RAIL_NETWORK: [[number, number], [number, number]] = [
@@ -94,7 +97,7 @@ export function MapView(props: Props) {
     const attribution = new maplibregl.AttributionControl({
         compact: true,
         customAttribution:
-          'Junat: <a href="https://www.digitraffic.fi/" target="_blank">Fintraffic / digitraffic.fi</a>, CC BY 4.0 | Metro: <a href="https://www.hsl.fi/avoindata" target="_blank">HSL</a>, CC BY 4.0',
+          'Junat: <a href="https://www.digitraffic.fi/" target="_blank">Fintraffic / digitraffic.fi</a>, CC BY 4.0 | Metro ja raitiovaunut: <a href="https://www.hsl.fi/avoindata" target="_blank">HSL</a>, <a href="https://data.itsfactory.fi/" target="_blank">Nysse / ITS Factory</a>, CC BY 4.0',
     });
     map.addControl(attribution, 'bottom-left');
     // Start collapsed behind the (i) button; the credits are long.
@@ -109,11 +112,9 @@ export function MapView(props: Props) {
 
     map.on('load', () => {
       collapseAttribution();
-      addMetroLayers(map);
+      for (const id of NETWORKS) addTransitLayers(map, id);
       addStationLayers(map);
       addTrainLayers(map);
-      (map.getSource(STATION_SOURCE) as GeoJSONSource).setData(stationsToGeoJson(trainStore.stations.values()));
-      if (trainStore.metro) (map.getSource(METRO_SOURCE) as GeoJSONSource).setData(trainStore.metro.geojson);
       setLoaded(true);
       latest.current.onReady({
         zoomIn: () => map.zoomIn(),
@@ -272,22 +273,27 @@ export function MapView(props: Props) {
     };
   }, []);
 
-  // Stations and the metro network may arrive after the map has loaded.
-  useEffect(() => {
-    const map = mapRef.current;
-    (map?.getSource(STATION_SOURCE) as GeoJSONSource | undefined)?.setData(
-      stationsToGeoJson(trainStore.stations.values()),
-    );
-    if (trainStore.metro) (map?.getSource(METRO_SOURCE) as GeoJSONSource | undefined)?.setData(trainStore.metro.geojson);
-  }, [version, loaded]);
-
-  // Hiding the metro hides its lines and stations too, not just the trains.
-  const metroHidden = props.hidden.has('metro');
+  // Stations and the metro and tram networks may arrive after the map has loaded.
   useEffect(() => {
     const map = mapRef.current;
     if (!map || !loaded) return;
-    for (const id of METRO_LAYERS) map.setLayoutProperty(id, 'visibility', metroHidden ? 'none' : 'visible');
-  }, [metroHidden, loaded]);
+    (map.getSource(STATION_SOURCE) as GeoJSONSource).setData(stationsToGeoJson(trainStore.stations.values()));
+    for (const [id, network] of trainStore.networks) {
+      (map.getSource(transitSource(id)) as GeoJSONSource).setData(network.geojson);
+    }
+  }, [version, loaded]);
+
+  // Hiding the metro or trams hides their lines and stops too, not just the vehicles.
+  const metroHidden = props.hidden.has('metro');
+  const tramsHidden = props.hidden.has('tram');
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map || !loaded) return;
+    for (const id of NETWORKS) {
+      const hidden = id === 'metro' ? metroHidden : tramsHidden;
+      for (const layer of transitLayers(id)) map.setLayoutProperty(layer, 'visibility', hidden ? 'none' : 'visible');
+    }
+  }, [metroHidden, tramsHidden, loaded]);
 
   const { selectedKey, padding, following } = props;
   useEffect(() => {

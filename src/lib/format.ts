@@ -1,4 +1,4 @@
-import type { Category, TrainMeta } from '../data/types';
+import type { Category, TrainMeta, Transit } from '../data/types';
 
 const timeFormat = new Intl.DateTimeFormat('fi-FI', {
   hour: '2-digit',
@@ -43,11 +43,12 @@ export const CATEGORY_LABELS: Record<Category, string> = {
   cargo: 'Tavarajunat',
   other: 'Muut',
   metro: 'Metro',
+  tram: 'Raitiovaunut',
 };
 
-/** How passengers would name it: "R-juna", "IC 27", "T 3642", "M1". */
-export function trainTitle(meta: Pick<TrainMeta, 'type' | 'trainNumber' | 'commuterLine' | 'metro'>) {
-  if (meta.metro) return meta.metro.line;
+/** How passengers would name it: "R-juna", "IC 27", "T 3642", "M1", "Ratikka 7". */
+export function trainTitle(meta: Pick<TrainMeta, 'type' | 'trainNumber' | 'commuterLine' | 'transit'>) {
+  if (meta.transit) return meta.transit.mode === 'tram' ? `Ratikka ${meta.transit.line}` : meta.transit.line;
   if (meta.commuterLine) return `${meta.commuterLine}-juna`;
   return `${meta.type} ${meta.trainNumber}`;
 }
@@ -55,12 +56,18 @@ export function trainTitle(meta: Pick<TrainMeta, 'type' | 'trainNumber' | 'commu
 /** Short label drawn next to the dot on the map. */
 export function mapLabel(meta: TrainMeta | undefined, trainNumber: number) {
   if (!meta) return String(trainNumber);
-  if (meta.metro) return meta.metro.line;
+  if (meta.transit) return meta.transit.line;
   return meta.commuterLine ?? `${meta.type} ${meta.trainNumber}`;
 }
 
-/** "13:59" from the realtime feed as "13.59". */
-export const metroStart = (start: string) => start.replace(':', '.');
+/** "13:59" from the realtime feeds as "13.59". */
+export const clockTime = (start: string) => start.replace(':', '.');
+
+const CITY_OPERATORS = { helsinki: 'HSL', tampere: 'Nysse' };
+
+/** "Metro · HSL", "Raitiovaunu · Nysse". */
+export const transitKind = (t: Transit) =>
+  `${t.mode === 'metro' ? 'Metro' : 'Raitiovaunu'} · ${CITY_OPERATORS[t.city]}`;
 
 export function delayText(minutes: number | null | undefined) {
   if (minutes == null) return null;

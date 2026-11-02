@@ -4,8 +4,9 @@
 // Each colour has one job, so it can be read at a glance:
 //   ink      – long-distance trains, and text
 //   lake     – commuter trains
-//   spruce   – freight trains (much of it timber)
 //   ruska    – the Helsinki metro: autumn leaves, and the metro's own orange
+//   spruce   – trams, green as Helsinki's are
+//   kaarna   – freight trains: bark brown, as much of the freight is timber
 //   heather  – whatever you are focused on: the selected train, the next stop, your location
 //   lingon   – delays and cancellations, nothing else
 // Everything else on the map (stations, rails, water, places) stays grey.
@@ -27,6 +28,10 @@ export const palette = {
   heather: '#7a69c4',
   lingon: '#cc4441',
   ruska: '#d27a26',
+  kaarna: '#6f5a4a',
+  // Lines under the vehicles: the colour mixed into paper, so it stays opaque.
+  ruskaLine: '#dc9a5a',
+  spruceLine: '#a5c7ab',
   lakeText: '#2a609f',
   spruceText: '#326c41',
   lingonText: '#b4383c',

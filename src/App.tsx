@@ -1,12 +1,12 @@
 import { useCallback, useEffect, useRef, useState, type CSSProperties } from 'react';
 import { MapView, type MapApi, type MapPadding } from './map/MapView';
 import { trainStore, useTrainStore } from './data/trainStore';
-import { isMetroKey, type Category, type TrainKey } from './data/types';
+import { isTransitKey, type Category, type TrainKey } from './data/types';
 import { Legend } from './ui/Legend';
 import { MapControls } from './ui/MapControls';
 import { Sheet } from './ui/Sheet';
 import { TrainCard } from './ui/TrainCard';
-import { MetroDetails } from './ui/MetroDetails';
+import { TransitDetails } from './ui/TransitDetails';
 import { TrainDetails, TrainHeader } from './ui/TrainDetails';
 
 // A selected train is kept in the address, e.g. #juna_2026-10-25_27, so a view can be shared.
@@ -91,8 +91,8 @@ export function App() {
 
   useEffect(() => {
     if (!ready) return;
-    // Metro runs are not linked: they last minutes, and their ids are not short.
-    const hash = selectedKey && detailsOpen && !isMetroKey(selectedKey) ? hashFor(selectedKey) : '';
+    // Metro and tram runs are not linked: they last minutes, and their ids are long.
+    const hash = selectedKey && detailsOpen && !isTransitKey(selectedKey) ? hashFor(selectedKey) : '';
     if (location.hash !== hash) replaceHash(hash);
   }, [ready, selectedKey, detailsOpen]);
 
@@ -164,7 +164,7 @@ export function App() {
 
       <Sheet
         open={detailsOpen && selectedKey !== null}
-        label={sheetKey && isMetroKey(sheetKey) ? 'Metron tiedot' : 'Junan tiedot'}
+        label={sheetKey && isTransitKey(sheetKey) ? 'Metron tai ratikan tiedot' : 'Junan tiedot'}
         onClose={close}
         onCover={setCover}
         header={
@@ -179,8 +179,8 @@ export function App() {
         }
       >
         {sheetKey &&
-          (isMetroKey(sheetKey) ? (
-            <MetroDetails key={sheetKey} trainKey={sheetKey} />
+          (isTransitKey(sheetKey) ? (
+            <TransitDetails key={sheetKey} trainKey={sheetKey} />
           ) : (
             <TrainDetails key={sheetKey} trainKey={sheetKey} />
           ))}

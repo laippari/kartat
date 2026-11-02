@@ -1,12 +1,10 @@
 import type { ExpressionSpecification, Map as MapLibre } from 'maplibre-gl';
 import { palette as c } from '../styles/palette';
 import { fonts } from './style';
-import type { Category, Station } from '../data/types';
+import type { Category, NetworkId, Station } from '../data/types';
 
 export const TRAIN_SOURCE = 'trains';
 export const STATION_SOURCE = 'stations';
-export const METRO_SOURCE = 'metro';
-export const METRO_LAYERS = ['metro-line', 'metro-stations'];
 /** Invisible, generously sized circles that make small dots easy to hover and tap. */
 export const TRAIN_HIT_LAYER = 'trains-hit';
 
@@ -50,9 +48,11 @@ const categoryColor = (other: string, text = false): ExpressionSpecification => 
   'commuter',
   text ? c.lakeText : c.lake,
   'cargo',
-  text ? c.spruceText : c.spruce,
+  c.kaarna,
   'metro',
   text ? c.ruskaText : c.ruska,
+  'tram',
+  text ? c.spruceText : c.spruce,
   other,
 ];
 
@@ -112,49 +112,89 @@ export function addStationLayers(map: MapLibre) {
   }
 }
 
-/** The metro lines and stations, drawn under everything that moves. */
-export function addMetroLayers(map: MapLibre) {
-  map.addSource(METRO_SOURCE, { type: 'geojson', data: { type: 'FeatureCollection', features: [] } });
+interface TransitStyle {
+  color: string;
+  /** Opaque, so overlapping route variants don't darken where they share track. */
+  lineColor: string;
+  lineWidth: [number, number][];
+  lineFrom: number;
+  stopsFrom: number;
+  namesFrom: number;
+  /** Draw one direction only, where both run on the same line. */
+  oneDirection: boolean;
+}
+
+const METRO_STYLE: TransitStyle = {
+  color: c.ruska,
+  lineColor: c.ruskaLine,
+  lineWidth: [
+    [8, 1],
+    [11, 2.2],
+    [14, 3.5],
+    [17, 5],
+  ],
+  lineFrom: 8,
+  stopsFrom: 10,
+  namesFrom: 12,
+  oneDirection: true,
+};
+
+const TRAM_STYLE: TransitStyle = {
+  color: c.spruce,
+  lineColor: c.spruceLine,
+  lineWidth: [
+    [10, 0.6],
+    [13, 1.6],
+    [16, 3],
+  ],
+  lineFrom: 10,
+  stopsFrom: 14,
+  namesFrom: 15,
+  oneDirection: false,
+};
+
+export const transitSource = (id: NetworkId) => `transit-${id}`;
+export const transitLayers = (id: NetworkId) => [`${id}-line`, `${id}-stops`];
+
+/** A metro or tram network's lines and stops, drawn under everything that moves. */
+export function addTransitLayers(map: MapLibre, id: NetworkId) {
+  const style = id === 'metro' ? METRO_STYLE : TRAM_STYLE;
+  const source = transitSource(id);
+  map.addSource(source, { type: 'geojson', data: { type: 'FeatureCollection', features: [] } });
+  const isLine: ExpressionSpecification = ['==', ['get', 'kind'], 'line'];
   map.addLayer({
-    id: 'metro-line',
+    id: `${id}-line`,
     type: 'line',
-    source: METRO_SOURCE,
-    minzoom: 8,
-    // Each line is stored once per direction; one is enough to draw.
-    filter: ['all', ['==', ['get', 'kind'], 'line'], ['==', ['get', 'direction'], 1]],
+    source,
+    minzoom: style.lineFrom,
+    filter: style.oneDirection ? ['all', isLine, ['==', ['get', 'direction'], 1]] : isLine,
     layout: { 'line-join': 'round', 'line-cap': 'round' },
-    paint: {
-      'line-color': c.ruska,
-      'line-width': zoomed([
-        [8, 1],
-        [11, 2.2],
-        [14, 3.5],
-        [17, 5],
-      ]),
-      'line-opacity': ['interpolate', ['linear'], ['zoom'], 8, 0.4, 10, 0.75],
-    },
+    paint: { 'line-color': style.lineColor, 'line-width': zoomed(style.lineWidth) },
   });
-  const icon = stationIcon(7, c.ruska);
-  map.addImage('station-metro', icon.image, icon.options);
+  const image = `stop-${id}`;
+  if (!map.hasImage(image)) {
+    const icon = stationIcon(7, style.color);
+    map.addImage(image, icon.image, icon.options);
+  }
   map.addLayer({
-    id: 'metro-stations',
+    id: `${id}-stops`,
     type: 'symbol',
-    source: METRO_SOURCE,
-    minzoom: 10,
+    source,
+    minzoom: style.stopsFrom,
     filter: ['==', ['get', 'kind'], 'station'],
     layout: {
-      'icon-image': 'station-metro',
+      'icon-image': image,
       'icon-size': zoomed([
-        [10, 0.75],
-        [13, 1],
-        [16, 1.2],
+        [style.stopsFrom, 0.75],
+        [style.stopsFrom + 3, 1],
+        [style.stopsFrom + 6, 1.2],
       ]),
       'icon-allow-overlap': true,
-      'text-field': ['step', ['zoom'], '', 12, ['get', 'name']],
+      'text-field': ['step', ['zoom'], '', style.namesFrom, ['get', 'name']],
       'text-font': fonts.regular,
       'text-size': zoomed([
-        [12, 11],
-        [15, 13],
+        [style.namesFrom, 11],
+        [style.namesFrom + 3, 13],
       ]),
       'text-anchor': 'top',
       'text-offset': [0, 0.7],
