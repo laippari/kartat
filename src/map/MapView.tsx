@@ -20,7 +20,7 @@ import {
   type AircraftFeatureProps,
   type TrainFeatureProps,
 } from './layers';
-import { AIR_AREA } from '../data/air';
+import { AIR_AREA, AIR_PROVIDER } from '../data/air';
 import { trainStore, useTrainStore } from '../data/trainStore';
 import type { Category, NetworkId, TrainKey } from '../data/types';
 import { isLate, mapLabel } from '../lib/format';
@@ -115,7 +115,7 @@ export function MapView(props: Props) {
     const attribution = new maplibregl.AttributionControl({
         compact: true,
         customAttribution:
-          'Junat: <a href="https://www.digitraffic.fi/" target="_blank">Fintraffic / digitraffic.fi</a>, CC BY 4.0 | Metro ja raitiovaunut: <a href="https://www.hsl.fi/avoindata" target="_blank">HSL</a>, <a href="https://data.itsfactory.fi/" target="_blank">Nysse / ITS Factory</a>, CC BY 4.0 | Lentokoneet: <a href="https://avioadsb.org/" target="_blank">AvioADSB</a>, CC BY-NC 4.0',
+          `Junat: <a href="https://www.digitraffic.fi/" target="_blank">Fintraffic / digitraffic.fi</a>, CC BY 4.0 | Metro ja raitiovaunut: <a href="https://www.hsl.fi/avoindata" target="_blank">HSL</a>, <a href="https://data.itsfactory.fi/" target="_blank">Nysse / ITS Factory</a>, CC BY 4.0 | Lentokoneet: <a href="${AIR_PROVIDER.home}" target="_blank">${AIR_PROVIDER.name}</a>, ${AIR_PROVIDER.licence}`,
     });
     map.addControl(attribution, 'bottom-left');
     // Start collapsed behind the (i) button; the credits are long.

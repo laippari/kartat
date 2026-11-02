@@ -1,4 +1,4 @@
-import { flightPhase, kmFromAirport } from '../data/air';
+import { AIR_PROVIDER, flightPhase, kmFromAirport } from '../data/air';
 import { trainStore, useTrainStore } from '../data/trainStore';
 import type { TrainKey } from '../data/types';
 import { ago, altitudeText, climbText, PHASE_TEXT } from '../lib/format';
@@ -59,8 +59,8 @@ export function AirDetails({ trainKey }: { trainKey: TrainKey }) {
 
       <p className="details-source">
         {location && <>Sijainti päivitetty {ago(location.timestamp, now)}. </>}
-        {status.remaining != null && <>Hakuja tänään jäljellä {status.remaining}. </>}
-        Lähde: AvioADSB, CC BY-NC 4.0
+        {status.remaining != null && <>Hakuja {AIR_PROVIDER.quotaPeriod} jäljellä {status.remaining}. </>}
+        Lähde: {AIR_PROVIDER.name}, {AIR_PROVIDER.licence}
       </p>
     </div>
   );

@@ -1,18 +1,57 @@
 import type { LngLat } from './motion';
 import type { Aircraft, TrainLocation, TrainMeta } from './types';
 
-// Aircraft around Helsinki-Vantaa, from AvioADSB: a community ADS-B network
-// whose API can be called straight from the browser without a key. Anonymous
-// use allows one request every ten seconds and 100 a day, counted per viewer's
-// network, so the map asks only while aircraft are shown near the airport.
-// The response has the same shape as adsb.lol and readsb, so another source
-// is a change of URL.
-// Data: AvioADSB, CC BY-NC 4.0 (personal and research use).
+// Aircraft around Helsinki-Vantaa from community ADS-B networks. The networks
+// with the best coverage in Finland (adsb.fi, adsb.lol, OpenSky) refuse calls
+// from web pages on other sites, so only sources that allow them are used:
+//
+// - FlyItalyADSB, when the build has a key (VITE_FLYITALY_KEY): a free key by
+//   email, 30 requests a minute and 300,000 a month, shared by everyone using
+//   the app, since a key in a web page is public. Data CC BY-SA 4.0.
+// - AvioADSB otherwise: no key, one request per ten seconds and 100 a day per
+//   viewer's network, but few receivers in Finland so far. Data CC BY-NC 4.0.
+//
+// Both answer in the readsb / adsb.lol format. The map asks only while
+// aircraft are shown near the airport and the page is visible.
 
 export const HELSINKI_VANTAA: LngLat = [24.9633, 60.3172];
 /** Nautical miles: approach and departure paths, out past Nummela and Porvoo. */
 const RADIUS_NM = 40;
-export const AIR_SOURCE_URL = `https://avioadsb.org/v1/point/${HELSINKI_VANTAA[1]}/${HELSINKI_VANTAA[0]}/${RADIUS_NM}`;
+
+export interface AirProvider {
+  name: string;
+  home: string;
+  licence: string;
+  url: string;
+  headers: Record<string, string>;
+  pollMs: number;
+  /** Over what period the remaining-requests count runs. */
+  quotaPeriod: 'tänään' | 'tässä kuussa';
+}
+
+const flyItalyKey: string | undefined = import.meta.env.VITE_FLYITALY_KEY;
+
+export const AIR_PROVIDER: AirProvider = flyItalyKey
+  ? {
+      name: 'FlyItalyADSB',
+      home: 'https://flyitalyadsb.com/',
+      licence: 'CC BY-SA 4.0',
+      url: `https://api.flyitalyadsb.com/v2/lat/${HELSINKI_VANTAA[1]}/lon/${HELSINKI_VANTAA[0]}/dist/${Math.round(RADIUS_NM * 1.852)}`,
+      headers: { 'X-Api-Key': flyItalyKey },
+      // 30 a minute is the key's limit across all viewers; leave room for a few at once.
+      pollMs: 10_000,
+      quotaPeriod: 'tässä kuussa',
+    }
+  : {
+      name: 'AvioADSB',
+      home: 'https://avioadsb.org/',
+      licence: 'CC BY-NC 4.0',
+      url: `https://avioadsb.org/v1/point/${HELSINKI_VANTAA[1]}/${HELSINKI_VANTAA[0]}/${RADIUS_NM}`,
+      headers: {},
+      // One request per ten seconds is allowed; leave a margin.
+      pollMs: 15_000,
+      quotaPeriod: 'tänään',
+    };
 
 /** The box around the circle the source is asked about, in degrees. */
 const radiusLat = (RADIUS_NM * 1.852) / 111.32;
@@ -23,8 +62,7 @@ export const AIR_AREA = {
   south: HELSINKI_VANTAA[1] - radiusLat,
   north: HELSINKI_VANTAA[1] + radiusLat,
 };
-/** The anonymous tier allows one request per ten seconds; leave a margin. */
-export const AIR_POLL_MS = 15_000;
+export const AIR_POLL_MS = AIR_PROVIDER.pollMs;
 
 const FEET = 0.3048;
 const KNOTS = 1.852;
@@ -118,9 +156,9 @@ export function flightPhase(air: Aircraft, position: LngLat, speedKmh: number): 
 }
 
 export interface AirQuota {
-  /** Requests left today, as the source last said. */
+  /** Requests left in the source's period, as it last said. */
   remaining: number | null;
-  /** When the daily count starts over, ms since epoch. */
+  /** When the count starts over, ms since epoch. */
   resetsAt: number | null;
 }
 
@@ -147,8 +185,8 @@ function quotaOf(res: Response): AirQuota {
   };
 }
 
-export async function fetchAircraft(url = AIR_SOURCE_URL): Promise<AirSnapshot> {
-  const res = await fetch(url);
+export async function fetchAircraft(source = AIR_PROVIDER): Promise<AirSnapshot> {
+  const res = await fetch(source.url, { headers: source.headers });
   const quota = quotaOf(res);
   if (res.status === 429) {
     const retry = Number(res.headers.get('Retry-After') ?? 10);
@@ -156,7 +194,8 @@ export async function fetchAircraft(url = AIR_SOURCE_URL): Promise<AirSnapshot> 
   }
   if (!res.ok) throw new Error(`aircraft ${res.status}`);
   const body: { ac?: RawAircraft[]; now?: number } = await res.json();
-  const now = body.now ?? Date.now();
+  // Some sources give seconds, some milliseconds.
+  const now = body.now == null ? Date.now() : body.now < 1e12 ? body.now * 1000 : body.now;
   return {
     aircraft: (body.ac ?? []).flatMap((a) => parseAircraft(a, now) ?? []),
     quota,

@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { AIR_PROVIDER } from '../data/air';
 import { useTrainStore, type AirStatus } from '../data/trainStore';
 import type { Category } from '../data/types';
 import { CATEGORY_LABELS, formatTime } from '../lib/format';
@@ -12,7 +13,7 @@ interface Props {
 /** Passenger traffic first, then freight and the rest. */
 const ORDER: Category[] = ['long-distance', 'commuter', 'metro', 'tram', 'air', 'cargo', 'other'];
 
-/** What the aircraft row says beneath it: the source allows 100 requests a day. */
+/** What the aircraft row says beneath it: the sources limit requests per day or month. */
 function airNote({ state, remaining, resetsAt }: AirStatus) {
   switch (state) {
     case 'off':
@@ -20,9 +21,9 @@ function airNote({ state, remaining, resetsAt }: AirStatus) {
     case 'loading':
       return 'Haetaan lentokoneita…';
     case 'live':
-      return remaining == null ? null : `${remaining} hakua tänään jäljellä`;
+      return remaining == null ? null : `${remaining} hakua ${AIR_PROVIDER.quotaPeriod} jäljellä`;
     case 'used-up':
-      return `Päivän haut on käytetty${resetsAt ? `; jatkuu klo ${formatTime(new Date(resetsAt).toISOString())}` : ''}.`;
+      return `Haut on käytetty${resetsAt ? `; jatkuu klo ${formatTime(new Date(resetsAt).toISOString())}` : ''}.`;
     case 'error':
       return 'Lentotietoja ei saatu. Yritetään uudelleen.';
   }
