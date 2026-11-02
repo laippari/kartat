@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { useTrainStore } from '../data/trainStore';
+import { useTrainStore, type AirStatus } from '../data/trainStore';
 import type { Category } from '../data/types';
 import { CATEGORY_LABELS, formatTime } from '../lib/format';
 import { Chevron } from './icons';
@@ -10,10 +10,26 @@ interface Props {
 }
 
 /** Passenger traffic first, then freight and the rest. */
-const ORDER: Category[] = ['long-distance', 'commuter', 'metro', 'tram', 'cargo', 'other'];
+const ORDER: Category[] = ['long-distance', 'commuter', 'metro', 'tram', 'air', 'cargo', 'other'];
+
+/** What the aircraft row says beneath it: the source allows 100 requests a day. */
+function airNote({ state, remaining, resetsAt }: AirStatus) {
+  switch (state) {
+    case 'off':
+      return 'Lähennä Helsinki-Vantaalle, niin koneet haetaan.';
+    case 'loading':
+      return 'Haetaan lentokoneita…';
+    case 'live':
+      return remaining == null ? null : `${remaining} hakua tänään jäljellä`;
+    case 'used-up':
+      return `Päivän haut on käytetty${resetsAt ? `; jatkuu klo ${formatTime(new Date(resetsAt).toISOString())}` : ''}.`;
+    case 'error':
+      return 'Lentotietoja ei saatu. Yritetään uudelleen.';
+  }
+}
 
 export function Legend({ hidden, onToggle }: Props) {
-  const { counts, ready, connected, recording } = useTrainStore();
+  const { counts, ready, connected, recording, air } = useTrainStore();
   const [expanded, setExpanded] = useState(() => window.matchMedia('(min-width: 768px)').matches);
   const total = ORDER.reduce((sum, c) => sum + counts[c], 0);
 
@@ -26,7 +42,7 @@ export function Legend({ hidden, onToggle }: Props) {
         : `${total} liikkeellä`;
 
   return (
-    <section className="legend" aria-label="Raideliikenne kartalla">
+    <section className="legend" aria-label="Liikenne kartalla">
       <button
         type="button"
         className="legend-summary"
@@ -35,7 +51,7 @@ export function Legend({ hidden, onToggle }: Props) {
         onClick={() => setExpanded(!expanded)}
       >
         <span className={`live-dot${ready && connected && !recording ? ' is-live' : ''}`} aria-hidden />
-        <span className="legend-title">Raideliikenne</span>
+        <span className="legend-title">Liikenne</span>
         <span className="legend-status" aria-live="polite">
           {status}
         </span>
@@ -56,6 +72,11 @@ export function Legend({ hidden, onToggle }: Props) {
                 <span>{CATEGORY_LABELS[c]}</span>
                 <span className="legend-count">{counts[c]}</span>
               </button>
+              {c === 'air' && !hidden.has('air') && airNote(air) && (
+                <p className="legend-sub" aria-live="polite">
+                  {airNote(air)}
+                </p>
+              )}
             </li>
           ))}
           <li className="legend-note">

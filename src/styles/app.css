@@ -159,6 +159,44 @@ button {
   border: 1.5px solid rgb(122 105 196 / 0.9);
 }
 
+/* The selected aircraft: its outline turned to its track, inside the heather halo. */
+.focus-plane {
+  display: none;
+  position: absolute;
+  width: 28px;
+  height: 28px;
+  translate: -50% -50%;
+  rotate: var(--track, 0deg);
+  overflow: visible;
+}
+
+.focus-plane path {
+  fill: var(--ink);
+  stroke: var(--paper);
+  stroke-width: 2.5;
+  stroke-linejoin: round;
+  paint-order: stroke;
+}
+
+.focus-train[data-cat='air'] .focus-plane {
+  display: block;
+}
+
+.focus-train[data-cat='air'][data-ground='true'] .focus-plane path {
+  fill: var(--muted);
+}
+
+/* The dot stays as the halo's anchor, sized for the aircraft, but is not drawn itself. */
+.focus-train[data-cat='air'] .focus-dot {
+  --r: 12px;
+  background: none;
+  box-shadow: none;
+}
+
+.focus-train[data-cat='air'] .focus-label {
+  left: 22px;
+}
+
 .focus-label {
   position: absolute;
   left: calc(var(--r) + 8px);
@@ -407,6 +445,14 @@ button {
   font-variant-numeric: tabular-nums;
 }
 
+.legend-sub {
+  margin: -2px 0 4px;
+  padding: 0 12px 0 36px;
+  font-size: 12px;
+  line-height: 1.35;
+  color: var(--muted);
+}
+
 .legend-note {
   grid-template-columns: 14px 1fr;
   margin-top: 4px;
@@ -452,6 +498,16 @@ button {
 
 .glyph.is-metro {
   background: var(--ruska);
+}
+
+.glyph.is-air {
+  border-radius: 0;
+  background: var(--ink);
+  clip-path: path('M5 0 L5.8 1 L5.8 3.6 L10 6.2 L10 7 L5.8 5.6 L5.7 8.2 L7.2 9.4 L7.2 10 L5 9.4 L2.8 10 L2.8 9.4 L4.3 8.2 L4.2 5.6 L0 7 L0 6.2 L4.2 3.6 L4.2 1 Z');
+}
+
+.card .glyph.is-air {
+  background: var(--paper);
 }
 
 .glyph.is-other {
@@ -781,6 +837,30 @@ button {
 
 .is-late {
   color: var(--lingon-text);
+}
+
+/* Label and value rows, for what has no timetable to show. */
+.facts {
+  margin: 0;
+  padding: 8px 20px;
+}
+
+.facts > div {
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 9px 0;
+  border-bottom: 1px solid var(--hairline);
+}
+
+.facts dt {
+  color: var(--muted);
+}
+
+.facts dd {
+  margin: 0;
+  text-align: right;
+  font-weight: 500;
 }
 
 .details-note {

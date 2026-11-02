@@ -3,9 +3,12 @@ import maplibregl, { type GeoJSONSource, type Map as MapLibre } from 'maplibre-g
 import 'maplibre-gl/dist/maplibre-gl.css';
 import { mapStyle } from './style';
 import {
+  addAircraftLayers,
   addStationLayers,
   addTrainLayers,
   addTransitLayers,
+  AIR_HIT_LAYER,
+  AIR_SOURCE,
   dotRadiusAt,
   STATION_SOURCE,
   setFocusedTrain,
@@ -14,8 +17,10 @@ import {
   TRAIN_SOURCE,
   transitLayers,
   transitSource,
+  type AircraftFeatureProps,
   type TrainFeatureProps,
 } from './layers';
+import { AIR_AREA } from '../data/air';
 import { trainStore, useTrainStore } from '../data/trainStore';
 import type { Category, NetworkId, TrainKey } from '../data/types';
 import { isLate, mapLabel } from '../lib/format';
@@ -26,7 +31,20 @@ import { isLate, mapLabel } from '../lib/format';
 const isLateForMap = (cat: Category, delay: number | null | undefined) =>
   (cat === 'long-distance' || cat === 'commuter' || cat === 'tram') && isLate(delay);
 
+/** The same outline as the map's aircraft icon (layers.ts), for the selected aircraft. */
+const PLANE_PATH =
+  'M0 -11 L1.6 -9 L1.6 -3 L10.5 2.5 L10.5 4.5 L1.6 1.5 L1.4 7 L4.5 9.5 L4.5 11 L0 9.8 L-4.5 11 L-4.5 9.5 L-1.4 7 L-1.6 1.5 L-10.5 4.5 L-10.5 2.5 L-1.6 -3 L-1.6 -9 Z';
+
 const NETWORKS: NetworkId[] = ['tram-helsinki', 'tram-tampere', 'metro'];
+
+/** Aircraft are fetched only when the map shows Helsinki-Vantaa's surroundings this closely. */
+const AIR_MIN_ZOOM = 7.5;
+
+function airInView(map: MapLibre) {
+  if (map.getZoom() < AIR_MIN_ZOOM) return false;
+  const b = map.getBounds();
+  return b.getWest() < AIR_AREA.east && b.getEast() > AIR_AREA.west && b.getSouth() < AIR_AREA.north && b.getNorth() > AIR_AREA.south;
+}
 
 // The rail network, Hanko to Kolari, rather than all of Finland: the far north has no lines.
 const RAIL_NETWORK: [[number, number], [number, number]] = [
@@ -97,7 +115,7 @@ export function MapView(props: Props) {
     const attribution = new maplibregl.AttributionControl({
         compact: true,
         customAttribution:
-          'Junat: <a href="https://www.digitraffic.fi/" target="_blank">Fintraffic / digitraffic.fi</a>, CC BY 4.0 | Metro ja raitiovaunut: <a href="https://www.hsl.fi/avoindata" target="_blank">HSL</a>, <a href="https://data.itsfactory.fi/" target="_blank">Nysse / ITS Factory</a>, CC BY 4.0',
+          'Junat: <a href="https://www.digitraffic.fi/" target="_blank">Fintraffic / digitraffic.fi</a>, CC BY 4.0 | Metro ja raitiovaunut: <a href="https://www.hsl.fi/avoindata" target="_blank">HSL</a>, <a href="https://data.itsfactory.fi/" target="_blank">Nysse / ITS Factory</a>, CC BY 4.0 | Lentokoneet: <a href="https://avioadsb.org/" target="_blank">AvioADSB</a>, CC BY-NC 4.0',
     });
     map.addControl(attribution, 'bottom-left');
     // Start collapsed behind the (i) button; the credits are long.
@@ -106,8 +124,9 @@ export function MapView(props: Props) {
 
     let userMarker: maplibregl.Marker | null = null;
     let hovered: TrainKey | null = null;
+    let hoveredSource = TRAIN_SOURCE;
     const setHover = (key: TrainKey | null, value: boolean) => {
-      if (key && map.getSource(TRAIN_SOURCE)) map.setFeatureState({ source: TRAIN_SOURCE, id: key }, { hover: value });
+      if (key && map.getSource(hoveredSource)) map.setFeatureState({ source: hoveredSource, id: key }, { hover: value });
     };
 
     map.on('load', () => {
@@ -115,7 +134,9 @@ export function MapView(props: Props) {
       for (const id of NETWORKS) addTransitLayers(map, id);
       addStationLayers(map);
       addTrainLayers(map);
+      addAircraftLayers(map);
       setLoaded(true);
+      updateAirWanted();
       latest.current.onReady({
         zoomIn: () => map.zoomIn(),
         zoomOut: () => map.zoomOut(),
@@ -137,26 +158,32 @@ export function MapView(props: Props) {
     });
 
     const hoverCapable = window.matchMedia('(hover: hover)').matches;
-    map.on('mousemove', TRAIN_HIT_LAYER, (e) => {
-      if (!hoverCapable) return;
-      const key = (e.features?.[0]?.properties as TrainFeatureProps | undefined)?.key ?? null;
-      map.getCanvas().style.cursor = key ? 'pointer' : '';
-      if (key === hovered) return;
-      setHover(hovered, false);
-      setHover(key, true);
-      hovered = key;
-      latest.current.onHover(key);
-    });
-    map.on('mouseleave', TRAIN_HIT_LAYER, () => {
-      map.getCanvas().style.cursor = '';
-      setHover(hovered, false);
-      hovered = null;
-      latest.current.onHover(null);
-    });
+    for (const [layer, source] of [
+      [TRAIN_HIT_LAYER, TRAIN_SOURCE],
+      [AIR_HIT_LAYER, AIR_SOURCE],
+    ]) {
+      map.on('mousemove', layer, (e) => {
+        if (!hoverCapable) return;
+        const key = (e.features?.[0]?.properties as { key?: string } | undefined)?.key ?? null;
+        map.getCanvas().style.cursor = key ? 'pointer' : '';
+        if (key === hovered) return;
+        setHover(hovered, false);
+        hovered = key;
+        hoveredSource = source;
+        setHover(key, true);
+        latest.current.onHover(key);
+      });
+      map.on('mouseleave', layer, () => {
+        map.getCanvas().style.cursor = '';
+        setHover(hovered, false);
+        hovered = null;
+        latest.current.onHover(null);
+      });
+    }
 
     map.on('click', (e) => {
       // Several trains can be under a finger; take the one closest to it.
-      const hits = map.queryRenderedFeatures(e.point, { layers: [TRAIN_HIT_LAYER] });
+      const hits = map.queryRenderedFeatures(e.point, { layers: [TRAIN_HIT_LAYER, AIR_HIT_LAYER] });
       let best: TrainKey | null = null;
       let bestDistance = Infinity;
       for (const f of hits) {
@@ -172,6 +199,9 @@ export function MapView(props: Props) {
     });
 
     map.on('dragstart', () => latest.current.onUserMove());
+
+    const updateAirWanted = () => trainStore.setAirWanted(!latest.current.hidden.has('air') && airInView(map));
+    map.on('moveend', updateAirWanted);
 
     // Animation loop. The map's train layer is rebuilt at 30 fps; its data goes
     // through a worker and shows up a frame or two later. The camera, the
@@ -191,9 +221,23 @@ export function MapView(props: Props) {
       if (now - lastData >= FRAME_MS) {
         lastData = now;
         const features: GeoJSON.Feature<GeoJSON.Point, TrainFeatureProps>[] = [];
+        const aircraft: GeoJSON.Feature<GeoJSON.Point, AircraftFeatureProps>[] = [];
         for (const t of trainStore.visible(now)) {
           const cat = t.meta?.category ?? 'other';
           if (hidden.has(cat) && t.key !== selectedKey) continue;
+          if (t.meta?.air) {
+            aircraft.push({
+              type: 'Feature',
+              geometry: { type: 'Point', coordinates: t.position },
+              properties: {
+                key: t.key,
+                label: t.meta.air.callsign,
+                track: t.meta.air.track ?? 0,
+                ground: t.meta.air.altitude == null,
+              },
+            });
+            continue;
+          }
           features.push({
             type: 'Feature',
             geometry: { type: 'Point', coordinates: t.position },
@@ -205,6 +249,7 @@ export function MapView(props: Props) {
             },
           });
         }
+        (map.getSource(AIR_SOURCE) as GeoJSONSource).setData({ type: 'FeatureCollection', features: aircraft });
         source.setData({ type: 'FeatureCollection', features });
       }
 
@@ -237,6 +282,8 @@ export function MapView(props: Props) {
           focusEl.style.transform = `translate(${p.x}px, ${p.y}px)`;
           focusEl.style.setProperty('--r', `${dotRadiusAt(map.getZoom())}px`);
           focusEl.dataset.cat = cat;
+          focusEl.dataset.ground = String(meta?.air != null && meta.air.altitude == null);
+          focusEl.style.setProperty('--track', `${meta?.air?.track ?? 0}deg`);
           focusEl.dataset.late = String(isLateForMap(cat, meta?.delay));
           const label = map.getZoom() >= 9 ? mapLabel(meta, Number(selectedKey.split('/')[1])) : '';
           if (focusEl.lastElementChild!.textContent !== label) focusEl.lastElementChild!.textContent = label;
@@ -283,6 +330,12 @@ export function MapView(props: Props) {
     }
   }, [version, loaded]);
 
+  const airHidden = props.hidden.has('air');
+  useEffect(() => {
+    const map = mapRef.current;
+    if (map && loaded) trainStore.setAirWanted(!airHidden && airInView(map));
+  }, [airHidden, loaded]);
+
   // Hiding the metro or trams hides their lines and stops too, not just the vehicles.
   const metroHidden = props.hidden.has('metro');
   const tramsHidden = props.hidden.has('tram');
@@ -313,6 +366,9 @@ export function MapView(props: Props) {
       <div className="map" ref={container} />
       <div className="focus-train" ref={focus} hidden aria-hidden>
         <span className="focus-dot" />
+        <svg className="focus-plane" viewBox="-13 -13 26 26">
+          <path d={PLANE_PATH} />
+        </svg>
         <span className="focus-label" />
       </div>
       <div className="card-anchor" ref={anchor} hidden>

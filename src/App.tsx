@@ -1,7 +1,8 @@
 import { useCallback, useEffect, useRef, useState, type CSSProperties } from 'react';
 import { MapView, type MapApi, type MapPadding } from './map/MapView';
 import { trainStore, useTrainStore } from './data/trainStore';
-import { isTransitKey, type Category, type TrainKey } from './data/types';
+import { isAirKey, isTransitKey, type Category, type TrainKey } from './data/types';
+import { AirDetails } from './ui/AirDetails';
 import { Legend } from './ui/Legend';
 import { MapControls } from './ui/MapControls';
 import { Sheet } from './ui/Sheet';
@@ -92,7 +93,8 @@ export function App() {
   useEffect(() => {
     if (!ready) return;
     // Metro and tram runs are not linked: they last minutes, and their ids are long.
-    const hash = selectedKey && detailsOpen && !isTransitKey(selectedKey) ? hashFor(selectedKey) : '';
+    const linkable = selectedKey && !isTransitKey(selectedKey) && !isAirKey(selectedKey);
+    const hash = linkable && detailsOpen ? hashFor(selectedKey) : '';
     if (location.hash !== hash) replaceHash(hash);
   }, [ready, selectedKey, detailsOpen]);
 
@@ -164,7 +166,13 @@ export function App() {
 
       <Sheet
         open={detailsOpen && selectedKey !== null}
-        label={sheetKey && isTransitKey(sheetKey) ? 'Metron tai ratikan tiedot' : 'Junan tiedot'}
+        label={
+          sheetKey && isAirKey(sheetKey)
+            ? 'Lennon tiedot'
+            : sheetKey && isTransitKey(sheetKey)
+              ? 'Metron tai ratikan tiedot'
+              : 'Junan tiedot'
+        }
         onClose={close}
         onCover={setCover}
         header={
@@ -179,7 +187,9 @@ export function App() {
         }
       >
         {sheetKey &&
-          (isTransitKey(sheetKey) ? (
+          (isAirKey(sheetKey) ? (
+            <AirDetails key={sheetKey} trainKey={sheetKey} />
+          ) : isTransitKey(sheetKey) ? (
             <TransitDetails key={sheetKey} trainKey={sheetKey} />
           ) : (
             <TrainDetails key={sheetKey} trainKey={sheetKey} />

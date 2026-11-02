@@ -1,6 +1,7 @@
 import { stationName, trainStore } from '../data/trainStore';
 import type { TrainKey } from '../data/types';
-import { clockTime, delayText, isLate, trainTitle, transitKind, typeName } from '../lib/format';
+import { flightPhase } from '../data/air';
+import { aircraftKind, altitudeText, clockTime, delayText, isLate, PHASE_TEXT, trainTitle, transitKind, typeName } from '../lib/format';
 import { useNow } from '../lib/hooks';
 import { ArrowRight } from './icons';
 
@@ -20,7 +21,9 @@ export function TrainCard({ trainKey, pinned, onOpen }: Props) {
   const title = meta ? trainTitle(meta) : `Juna ${number}`;
   const kind = !meta
     ? null
-    : meta.transit
+    : meta.air
+      ? aircraftKind(meta.air)
+      : meta.transit
       ? `${transitKind(meta.transit)} · lähti ${clockTime(meta.transit.start)}`
       : meta.commuterLine
         ? `Lähijuna ${meta.trainNumber}`
@@ -37,6 +40,12 @@ export function TrainCard({ trainKey, pinned, onOpen }: Props) {
         {location && <span className="card-speed">{location.speed} km/h</span>}
       </div>
       {kind && <div className="card-kind">{kind}</div>}
+      {meta?.air && location && (
+        <div className="card-route">
+          {PHASE_TEXT[flightPhase(meta.air, [location.lng, location.lat], location.speed)]}
+          <span className="card-altitude"> · {altitudeText(meta.air.altitude)}</span>
+        </div>
+      )}
       {meta?.origin && meta.destination && (
         <div className="card-route">
           {stationName(meta.origin.code)} <span aria-hidden>→</span>
@@ -46,7 +55,7 @@ export function TrainCard({ trainKey, pinned, onOpen }: Props) {
       {delay && <div className={`card-delay${isLate(meta?.delay) ? ' is-late' : ''}`}>{delay}</div>}
       {pinned && (
         <button type="button" className="card-open" onClick={onOpen}>
-          {meta?.transit ? 'Pysäkit ja tiedot' : 'Aikataulu ja tiedot'}
+          {meta?.air ? 'Lennon tiedot' : meta?.transit ? 'Pysäkit ja tiedot' : 'Aikataulu ja tiedot'}
           <ArrowRight />
         </button>
       )}

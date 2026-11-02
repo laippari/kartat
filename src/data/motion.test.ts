@@ -63,6 +63,16 @@ describe('motion', () => {
     expect(fastest).toBeLessThan(20 + (30 / (CORRECTION_MS / 1000)) * 1.6);
   });
 
+  it('moves off at once along a reported heading', () => {
+    // An aircraft heading due east at 360 km/h = 100 m/s.
+    const plane = nextMotion(undefined, { lng: 25, lat: 60, speed: 360, heading: 90 }, 0, 0, false, 60_000);
+    const [east, north] = offsetMetres([25, 60], positionAt(plane, 10_000));
+    expect(east).toBeCloseTo(1000, -1);
+    expect(Math.abs(north)).toBeLessThan(1);
+    // and keeps going past the default horizon
+    expect(offsetMetres([25, 60], positionAt(plane, 30_000))[0]).toBeCloseTo(3000, -1);
+  });
+
   it('treats a crawl as standing', () => {
     const slow = nextMotion(second, at(25, 60.0011, 2), 6000, 0, true);
     expect(positionAt(slow, 20_000)).toEqual([25, 60.0011]);

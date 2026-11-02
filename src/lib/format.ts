@@ -1,4 +1,5 @@
-import type { Category, TrainMeta, Transit } from '../data/types';
+import type { FlightPhase } from '../data/air';
+import type { Aircraft, Category, TrainMeta, Transit } from '../data/types';
 
 const timeFormat = new Intl.DateTimeFormat('fi-FI', {
   hour: '2-digit',
@@ -44,10 +45,12 @@ export const CATEGORY_LABELS: Record<Category, string> = {
   other: 'Muut',
   metro: 'Metro',
   tram: 'Raitiovaunut',
+  air: 'Lentokoneet',
 };
 
 /** How passengers would name it: "R-juna", "IC 27", "T 3642", "M1", "Ratikka 7". */
-export function trainTitle(meta: Pick<TrainMeta, 'type' | 'trainNumber' | 'commuterLine' | 'transit'>) {
+export function trainTitle(meta: Pick<TrainMeta, 'type' | 'trainNumber' | 'commuterLine' | 'transit' | 'air'>) {
+  if (meta.air) return meta.air.callsign;
   if (meta.transit) return meta.transit.mode === 'tram' ? `Ratikka ${meta.transit.line}` : meta.transit.line;
   if (meta.commuterLine) return `${meta.commuterLine}-juna`;
   return `${meta.type} ${meta.trainNumber}`;
@@ -56,6 +59,7 @@ export function trainTitle(meta: Pick<TrainMeta, 'type' | 'trainNumber' | 'commu
 /** Short label drawn next to the dot on the map. */
 export function mapLabel(meta: TrainMeta | undefined, trainNumber: number) {
   if (!meta) return String(trainNumber);
+  if (meta.air) return meta.air.callsign;
   if (meta.transit) return meta.transit.line;
   return meta.commuterLine ?? `${meta.type} ${meta.trainNumber}`;
 }
@@ -95,3 +99,37 @@ export function ago(timestamp: number, now = Date.now()) {
 const OPERATORS: Record<string, string> = { vr: 'VR', fenniarail: 'Fenniarail', 'vr-track': 'VR FleetCare' };
 
 export const operatorName = (code: string) => OPERATORS[code] ?? code;
+
+const thousands = new Intl.NumberFormat('fi-FI');
+
+/** "1 250 m", "Maassa". */
+export const altitudeText = (metres: number | null) =>
+  metres == null ? 'Maassa' : `${thousands.format(Math.round(metres / 10) * 10)} m`;
+
+/** "+12 m/s", "−4 m/s", "Vaakalento". */
+export function climbText(metresPerSecond: number | null) {
+  if (metresPerSecond == null) return '–';
+  const rounded = Math.round(metresPerSecond);
+  if (rounded === 0) return 'Vaakalento';
+  return `${rounded > 0 ? '+' : '−'}${Math.abs(rounded)} m/s`;
+}
+
+export const PHASE_TEXT: Record<FlightPhase, string> = {
+  ground: 'Maassa Helsinki-Vantaalla',
+  landing: 'Laskeutumassa Helsinki-Vantaalle',
+  departing: 'Lähtenyt Helsinki-Vantaalta',
+  passing: 'Ylilento',
+};
+
+/** "Airbus A321 · Finnair"; the model name from the register, tidied. */
+export function aircraftKind(air: Aircraft) {
+  const model = air.model ? titleCase(air.model) : air.type;
+  return [model, air.operator && titleCase(air.operator)].filter(Boolean).join(' · ');
+}
+
+/** Registers shout: "AIRBUS A-321" → "Airbus A-321". Codes with digits stay as they are. */
+const titleCase = (text: string) =>
+  text
+    .split(' ')
+    .map((w) => (/\d/.test(w) || w.length <= 2 ? w : w[0] + w.slice(1).toLowerCase()))
+    .join(' ');

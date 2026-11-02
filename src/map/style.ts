@@ -136,12 +136,35 @@ export const mapStyle: StyleSpecification = {
       },
     },
     {
+      // Runways, so an airport reads as one when its aircraft are on the map.
+      id: 'runway',
+      type: 'line',
+      source: 'base',
+      'source-layer': 'aeroway',
+      minzoom: 9,
+      filter: ['all', isLine, ['==', ['get', 'class'], 'runway']],
+      paint: {
+        'line-color': c.railMinor,
+        'line-width': ['interpolate', ['exponential', 2], ['zoom'], 9, 2, 12, 8, 15, 45],
+      },
+    },
+    {
       id: 'boundary-country',
       type: 'line',
       source: 'base',
       'source-layer': 'boundary',
       filter: ['all', ['==', ['get', 'admin_level'], 2], ['!=', ['get', 'maritime'], 1]],
       paint: { 'line-color': c.muted, 'line-width': 0.8, 'line-dasharray': [3, 2], 'line-opacity': 0.6 },
+    },
+    {
+      id: 'airport-label',
+      type: 'symbol',
+      source: 'base',
+      'source-layer': 'aerodrome_label',
+      minzoom: 9,
+      filter: ['has', 'iata'],
+      layout: { 'text-field': name, 'text-font': regular, 'text-size': 11.5, 'text-offset': [0, 1] },
+      paint: { 'text-color': c.muted, 'text-halo-color': c.paper, 'text-halo-width': 1.5 },
     },
     {
       id: 'place-village',

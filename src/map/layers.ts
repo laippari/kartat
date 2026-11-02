@@ -4,6 +4,9 @@ import { fonts } from './style';
 import type { Category, NetworkId, Station } from '../data/types';
 
 export const TRAIN_SOURCE = 'trains';
+export const AIR_SOURCE = 'aircraft';
+/** Invisible circles around aircraft, for hovering and tapping. */
+export const AIR_HIT_LAYER = 'aircraft-hit';
 export const STATION_SOURCE = 'stations';
 /** Invisible, generously sized circles that make small dots easy to hover and tap. */
 export const TRAIN_HIT_LAYER = 'trains-hit';
@@ -284,7 +287,114 @@ export function addTrainLayers(map: MapLibre) {
   });
 }
 
-const TRAIN_VISUAL_LAYERS = ['trains-halo', 'trains-late', 'trains-dot', 'trains-label'];
+/**
+ * An aircraft seen from above, nose up, as a canvas image the map rotates to
+ * the aircraft's track. Ink like the long-distance trains: the shape, not a
+ * colour, tells it apart, so the palette keeps its meanings.
+ */
+function planeIcon(fill: string) {
+  const size = 26;
+  const ratio = 2;
+  const canvas = document.createElement('canvas');
+  canvas.width = canvas.height = size * ratio;
+  const ctx = canvas.getContext('2d')!;
+  ctx.scale(ratio, ratio);
+  ctx.translate(size / 2, size / 2);
+  ctx.beginPath();
+  // Fuselage, wings and tailplane, symmetrical about the vertical axis.
+  const half: [number, number][] = [
+    [0, -11],
+    [1.6, -9],
+    [1.6, -3],
+    [10.5, 2.5],
+    [10.5, 4.5],
+    [1.6, 1.5],
+    [1.4, 7],
+    [4.5, 9.5],
+    [4.5, 11],
+    [0, 9.8],
+  ];
+  ctx.moveTo(0, -11);
+  for (const [x, y] of half) ctx.lineTo(x, y);
+  for (const [x, y] of [...half].reverse()) ctx.lineTo(-x, y);
+  ctx.closePath();
+  ctx.lineJoin = 'round';
+  ctx.lineWidth = 2.5;
+  ctx.strokeStyle = c.paper;
+  ctx.stroke();
+  ctx.fillStyle = fill;
+  ctx.fill();
+  return { image: ctx.getImageData(0, 0, size * ratio, size * ratio), options: { pixelRatio: ratio } };
+}
+
+export function addAircraftLayers(map: MapLibre) {
+  map.addSource(AIR_SOURCE, {
+    type: 'geojson',
+    data: { type: 'FeatureCollection', features: [] },
+    promoteId: 'key',
+  });
+  for (const [name, fill] of [
+    ['plane', c.ink],
+    ['plane-ground', c.muted],
+  ]) {
+    const icon = planeIcon(fill);
+    map.addImage(name, icon.image, icon.options);
+  }
+  map.addLayer({
+    id: 'aircraft-halo',
+    type: 'circle',
+    source: AIR_SOURCE,
+    paint: {
+      'circle-radius': 16,
+      'circle-color': c.ink,
+      'circle-opacity': ['case', ['boolean', ['feature-state', 'hover'], false], 0.08, 0],
+    },
+  });
+  map.addLayer({
+    id: 'aircraft',
+    type: 'symbol',
+    source: AIR_SOURCE,
+    layout: {
+      'icon-image': ['case', ['get', 'ground'], 'plane-ground', 'plane'],
+      'icon-rotate': ['get', 'track'],
+      'icon-rotation-alignment': 'map',
+      'icon-allow-overlap': true,
+      'icon-ignore-placement': true,
+      'icon-size': zoomed([
+        [6, 0.55],
+        [9, 0.75],
+        [12, 0.95],
+        [15, 1.15],
+      ]),
+      'text-field': ['step', ['zoom'], '', 9, ['get', 'label']],
+      'text-font': fonts.bold,
+      'text-size': 11,
+      'text-anchor': 'left',
+      'text-offset': [1.4, 0],
+      'text-optional': true,
+    },
+    paint: {
+      'text-color': ['case', ['get', 'ground'], c.muted, c.ink],
+      'text-halo-color': c.paper,
+      'text-halo-width': 1.6,
+    },
+  });
+  map.addLayer({
+    id: AIR_HIT_LAYER,
+    type: 'circle',
+    source: AIR_SOURCE,
+    paint: { 'circle-radius': 18, 'circle-opacity': 0 },
+  });
+}
+
+export interface AircraftFeatureProps {
+  key: string;
+  label: string;
+  track: number;
+  ground: boolean;
+}
+
+const TRAIN_VISUAL_LAYERS = ['trains-halo', 'trains-late', 'trains-dot', 'trains-label', 'aircraft-halo', 'aircraft'];
 
 /**
  * Leaves one train out of the map's own drawing, so it can be drawn in step

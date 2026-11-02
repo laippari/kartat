@@ -1,9 +1,9 @@
 export type TrainCategory = 'long-distance' | 'commuter' | 'cargo' | 'other';
 export type TransitMode = 'metro' | 'tram';
-export type Category = TrainCategory | TransitMode;
+export type Category = TrainCategory | TransitMode | 'air';
 
 export const TRAIN_CATEGORIES: TrainCategory[] = ['long-distance', 'commuter', 'cargo', 'other'];
-export const CATEGORIES: Category[] = [...TRAIN_CATEGORIES, 'metro', 'tram'];
+export const CATEGORIES: Category[] = [...TRAIN_CATEGORIES, 'metro', 'tram', 'air'];
 
 /** The city rail networks, each drawn from its own file and followed on its own tracks. */
 export type NetworkId = 'metro' | 'tram-helsinki' | 'tram-tampere';
@@ -18,6 +18,26 @@ export const trainKey = (departureDate: string, trainNumber: number): TrainKey =
   `${departureDate}/${trainNumber}`;
 
 export const isTransitKey = (key: TrainKey) => key.startsWith('metro/') || key.startsWith('tram/');
+export const isAirKey = (key: TrainKey) => key.startsWith('air/');
+
+/** An aircraft, as its transponder reports it. */
+export interface Aircraft {
+  /** "FIN7YB", or the registration when no flight is filed. */
+  callsign: string;
+  registration: string | null;
+  /** "A321" */
+  type: string | null;
+  /** "AIRBUS A-321" */
+  model: string | null;
+  operator: string | null;
+  /** Metres above sea level; null on the ground. */
+  altitude: number | null;
+  /** Metres per second, up positive. */
+  climb: number | null;
+  /** Degrees clockwise from north. */
+  track: number | null;
+  squawk: string | null;
+}
 
 /** A metro or tram run. */
 export interface Transit {
@@ -55,6 +75,8 @@ export interface TrainMeta {
   delay: number | null;
   /** Metro and tram runs only. */
   transit?: Transit;
+  /** Aircraft only. */
+  air?: Aircraft;
 }
 
 export interface TrainLocation {

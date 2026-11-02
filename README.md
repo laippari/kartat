@@ -34,10 +34,11 @@ Kertaluonteinen asetus: repon *Settings → Pages → Build and deployment → S
 | Raitiovaunut, Helsinki | HSL, MQTT `/hfp/v2/journey/ongoing/vp/tram/#` | Live-virta, sama yhteys kuin metrolla |
 | Raitiovaunut, Tampere | ITS Factory Journeys API `vehicle-activity?lineRef=1,3` | Haetaan 3 s välein |
 | Raitiolinjat ja -pysäkit | HSL:n ja Nyssen GTFS | Valmiiksi tiedostoihin `public/data/tram-*.geojson` (`npm run data:trams`) |
+| Lentokoneet Helsinki-Vantaan ympärillä (40 mpk) | AvioADSB `v1/point` | 15 s välein, vain kun lentokoneet näkyvät kentän lähellä. Ilman avainta 100 hakua päivässä katsojan verkkoa kohden. Vastaus on samaa muotoa kuin adsb.lol:lla, joten lähde vaihtuu osoitteella (`src/data/air.ts`). |
 | Rataverkko (yleiskuva) | Digitraffic infra-api `radat.geojson` | Kevennetty valmiiksi tiedostoon `public/data/rail-network.geojson` (`npm run data:rail`) |
 | Taustakartta | OpenFreeMap (OpenMapTiles) | Oma tyyli `src/map/style.ts` |
 
-Junadata: Fintraffic / digitraffic.fi, CC BY 4.0. Metro ja raitiovaunut: HSL ja Tampereen joukkoliikenne Nysse (ITS Factory), CC BY 4.0. Rataverkko: Väylävirasto / digitraffic.fi, CC BY 4.0.
+Junadata: Fintraffic / digitraffic.fi, CC BY 4.0. Metro ja raitiovaunut: HSL ja Tampereen joukkoliikenne Nysse (ITS Factory), CC BY 4.0. Lentokoneet: AvioADSB, CC BY-NC 4.0. Rataverkko: Väylävirasto / digitraffic.fi, CC BY 4.0.
 Kartta: © OpenMapTiles © OpenStreetMap.
 
 ## Rakenne

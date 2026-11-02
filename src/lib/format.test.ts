@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { delayShort, delayText, formatTime, trainTitle } from './format';
+import { aircraftKind, altitudeText, climbText, delayShort, delayText, formatTime, trainTitle } from './format';
 
 describe('format', () => {
   it('shows times in Finnish time', () => {
@@ -25,5 +25,15 @@ describe('format', () => {
     expect(delayText(-2)).toBe('2 min etuajassa');
     expect(delayShort(4)).toBe('+4 min');
     expect(delayShort(null)).toBeNull();
+  });
+
+  it('describes aircraft', () => {
+    expect(altitudeText(5936)).toBe('5\u00a0940 m');
+    expect(altitudeText(null)).toBe('Maassa');
+    expect(climbText(13.9)).toBe('+14 m/s');
+    expect(climbText(-4.2)).toBe('−4 m/s');
+    expect(climbText(0.3)).toBe('Vaakalento');
+    const air = { callsign: 'FIN7YB', registration: 'OH-LZT', type: 'A321', model: 'AIRBUS A-321', operator: 'FINNAIR', altitude: 0, climb: 0, track: 0, squawk: null };
+    expect(aircraftKind(air)).toBe('Airbus A-321 · Finnair');
   });
 });

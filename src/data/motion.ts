@@ -12,6 +12,8 @@ export interface Fix {
   lat: number;
   /** km/h, as reported. */
   speed: number;
+  /** Degrees clockwise from north, where the source reports it (aircraft do). */
+  heading?: number;
 }
 
 export interface Motion {
@@ -27,6 +29,8 @@ export interface Motion {
   /** Drawn minus true velocity then, so the dot carries on at the pace it had. */
   correctionVelocity: LngLat;
   correctionStart: number;
+  /** How long past the fix to keep moving without news. */
+  horizon: number;
 }
 
 /** About one interval between fixes: each correction is spread over the wait for the next. */
@@ -54,7 +58,7 @@ export function offsetMetres(a: Fix | LngLat, b: Fix | LngLat): LngLat {
 
 /** Where to draw the train at `now`. */
 export function positionAt(m: Motion, now: number): LngLat {
-  const elapsed = Math.min(Math.max(now - m.fixTime, 0), MAX_EXTRAPOLATION_MS);
+  const elapsed = Math.min(Math.max(now - m.fixTime, 0), m.horizon);
   // Cubic Hermite fade: starts from the drawn position and pace, ends on the
   // true track with no leftover drift, and never changes speed abruptly.
   const s = Math.min((now - m.correctionStart) / CORRECTION_MS, 1);
@@ -75,9 +79,17 @@ function velocityAt(m: Motion, now: number): LngLat {
 /**
  * Motion after a new fix. `age` is how old the fix already is, so the train is
  * carried forward to where it should be now. Without `previous`, or with
- * `snap`, the dot starts exactly on the fix.
+ * `snap`, the dot starts exactly on the fix. `horizon` is how long to keep
+ * extrapolating; sources that update rarely need longer.
  */
-export function nextMotion(previous: Motion | undefined, fix: Fix, now: number, age: number, snap = false): Motion {
+export function nextMotion(
+  previous: Motion | undefined,
+  fix: Fix,
+  now: number,
+  age: number,
+  snap = false,
+  horizon = MAX_EXTRAPOLATION_MS,
+): Motion {
   let heading = previous?.heading ?? null;
   let firstHeading = false;
   if (previous) {
@@ -85,10 +97,14 @@ export function nextMotion(previous: Motion | undefined, fix: Fix, now: number, 
     const distance = Math.hypot(east, north);
     // Nothing new to steer by; acting on it would pull the dot back.
     if (distance < SAME_SPOT_METRES && fix.speed >= MIN_SPEED_KMH && !snap) return previous;
-    if (distance >= MIN_HEADING_METRES) {
+    if (distance >= MIN_HEADING_METRES && fix.heading == null) {
       firstHeading = !heading;
       heading = [east / distance, north / distance];
     }
+  }
+  if (fix.heading != null) {
+    const rad = (fix.heading * Math.PI) / 180;
+    heading = [Math.sin(rad), Math.cos(rad)];
   }
 
   const metresPerMs = fix.speed >= MIN_SPEED_KMH ? fix.speed / 3.6 / 1000 : 0;
@@ -105,6 +121,7 @@ export function nextMotion(previous: Motion | undefined, fix: Fix, now: number, 
     correction: [0, 0],
     correctionVelocity: [0, 0],
     correctionStart: now,
+    horizon,
   };
   // Until a train's direction is known its dot cannot move with it; once known,
   // move it straight there rather than racing to catch up.
