@@ -7,11 +7,22 @@ import {
   recording,
   subscribeLocations,
 } from './digitraffic';
+import { loadMetroNetwork, subscribeMetro, terminiOf, type MetroNetwork } from './metro';
 import { nextMotion, offsetMetres, positionAt, type Motion } from './motion';
-import { CATEGORIES, type Category, type Station, type TrainKey, type TrainLocation, type TrainMeta } from './types';
+import {
+  CATEGORIES,
+  isMetroKey,
+  type Category,
+  type Station,
+  type TrainKey,
+  type TrainLocation,
+  type TrainMeta,
+} from './types';
 
 /** A train that has not reported its position for this long is no longer shown. */
 const STALE_MS = 10 * 60_000;
+/** Metro trains report every second while running, so silence means the run has ended. */
+const METRO_STALE_MS = 60_000;
 const META_REFRESH_MS = 60_000;
 /** A position this recent from a train we do not know yet means it just set off. */
 const NEW_TRAIN_MS = 30_000;
@@ -51,6 +62,7 @@ class TrainStore {
   private pending = new Map<TrainKey, number>();
   private metaLoaded = false;
   stations = new Map<string, Station>();
+  metro: MetroNetwork | null = null;
 
   private snapshot: Snapshot = { ready: false, connected: false, counts: emptyCounts(), version: 0, recording: null };
   private listeners = new Set<() => void>();
@@ -90,6 +102,17 @@ class TrainStore {
       (connected) => this.publish({ connected }),
     );
 
+    loadMetroNetwork()
+      .then((network) => {
+        this.metro = network;
+        this.publish({ version: this.snapshot.version + 1 });
+      })
+      .catch(console.error);
+    subscribeMetro((location, meta) => {
+      if (!this.meta.has(meta.key)) this.meta.set(meta.key, meta);
+      this.upsert(location);
+    });
+
     window.setInterval(() => this.refreshMeta(), META_REFRESH_MS);
     window.setInterval(() => this.publishCounts(), 2000);
   }
@@ -127,7 +150,7 @@ class TrainStore {
 
     if (!existing) {
       const fresh = clockNow() - location.timestamp < NEW_TRAIN_MS;
-      if (!initial && fresh && !this.running.has(location.key)) {
+      if (!initial && fresh && !isMetroKey(location.key) && !this.running.has(location.key)) {
         this.pending.set(location.key, clockNow());
         this.scheduleMetaRefresh();
       }
@@ -148,6 +171,7 @@ class TrainStore {
   }
 
   private isFresh(t: Tracked) {
+    if (isMetroKey(t.location.key)) return clockNow() - t.location.timestamp < METRO_STALE_MS;
     if (clockNow() - t.location.timestamp > STALE_MS) return false;
     // Without metadata there is nothing to filter by; better to show every train.
     if (!this.metaLoaded) return true;
@@ -155,7 +179,16 @@ class TrainStore {
   }
 
   getMeta(key: TrainKey) {
-    return this.meta.get(key);
+    const meta = this.meta.get(key);
+    // Metro runs learn their end stations once the network has loaded.
+    if (meta?.metro && !meta.origin && this.metro) {
+      const termini = terminiOf(this.metro, meta.metro.line, meta.metro.direction);
+      if (termini) {
+        meta.origin = { code: termini.first, time: '' };
+        meta.destination = { code: termini.last, time: '' };
+      }
+    }
+    return meta;
   }
 
   getLocation(key: TrainKey) {
@@ -195,4 +228,5 @@ export function useTrainStore() {
   return useSyncExternalStore(trainStore.subscribe, trainStore.getSnapshot);
 }
 
-export const stationName = (code: string) => trainStore.stations.get(code)?.name ?? code;
+export const stationName = (code: string) =>
+  trainStore.stations.get(code)?.name ?? trainStore.metro?.stations.get(code)?.name ?? code;

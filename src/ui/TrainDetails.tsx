@@ -17,7 +17,12 @@ interface HeaderProps {
 export function TrainHeader({ trainKey, following, onFollow, onClose }: HeaderProps) {
   const meta = trainStore.getMeta(trainKey);
   const number = Number(trainKey.split('/')[1]);
-  const kind = meta && [meta.commuterLine ? `Lähijuna ${meta.trainNumber}` : typeName(meta.type), operatorName(meta.operator)];
+  const kind =
+    meta &&
+    [
+      meta.metro ? 'Metro' : meta.commuterLine ? `Lähijuna ${meta.trainNumber}` : typeName(meta.type),
+      operatorName(meta.operator),
+    ];
 
   return (
     <div className="train-header">
@@ -43,8 +48,8 @@ export function TrainHeader({ trainKey, following, onFollow, onClose }: HeaderPr
           type="button"
           className={`icon-button${following ? ' is-active' : ''}`}
           aria-pressed={following}
-          aria-label="Seuraa junaa kartalla"
-          title="Seuraa junaa"
+          aria-label="Seuraa kartalla"
+          title="Seuraa kartalla"
           onClick={onFollow}
         >
           <Follow />

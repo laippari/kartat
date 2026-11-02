@@ -5,6 +5,7 @@
 //   ink      – long-distance trains, and text
 //   lake     – commuter trains
 //   spruce   – freight trains (much of it timber)
+//   ruska    – the Helsinki metro: autumn leaves, and the metro's own orange
 //   heather  – whatever you are focused on: the selected train, the next stop, your location
 //   lingon   – delays and cancellations, nothing else
 // Everything else on the map (stations, rails, water, places) stays grey.
@@ -25,7 +26,9 @@ export const palette = {
   spruce: '#3d8a50',
   heather: '#7a69c4',
   lingon: '#cc4441',
+  ruska: '#d27a26',
   lakeText: '#2a609f',
   spruceText: '#326c41',
   lingonText: '#b4383c',
+  ruskaText: '#9a561a',
 } as const;

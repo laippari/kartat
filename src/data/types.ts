@@ -1,12 +1,16 @@
-export type Category = 'long-distance' | 'commuter' | 'cargo' | 'other';
+export type TrainCategory = 'long-distance' | 'commuter' | 'cargo' | 'other';
+export type Category = TrainCategory | 'metro';
 
-export const CATEGORIES: Category[] = ['long-distance', 'commuter', 'cargo', 'other'];
+export const TRAIN_CATEGORIES: TrainCategory[] = ['long-distance', 'commuter', 'cargo', 'other'];
+export const CATEGORIES: Category[] = [...TRAIN_CATEGORIES, 'metro'];
 
-/** Identifies one train run: the same train number repeats every day. */
+/** Identifies one run: the same train number repeats every day. Metro runs start with "metro/". */
 export type TrainKey = string;
 
 export const trainKey = (departureDate: string, trainNumber: number): TrainKey =>
   `${departureDate}/${trainNumber}`;
+
+export const isMetroKey = (key: TrainKey) => key.startsWith('metro/');
 
 export interface StopRef {
   code: string;
@@ -26,6 +30,8 @@ export interface TrainMeta {
   destination: StopRef | null;
   /** Minutes behind schedule at the latest recorded station, null if unknown. */
   delay: number | null;
+  /** Metro runs only. */
+  metro?: { line: string; direction: number; start: string };
 }
 
 export interface TrainLocation {

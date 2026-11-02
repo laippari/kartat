@@ -16,6 +16,7 @@
   --heather-soft: #ebe8f7;
   --lingon: #cc4441;
   --lingon-text: #b4383c;
+  --ruska: #d27a26;
   --lingon-on-ink: #ef8f86;
   --on-ink-muted: #aca89f;
 
@@ -214,7 +215,7 @@ button {
   top: calc(var(--gutter) + env(safe-area-inset-top));
   left: calc(var(--gutter) + env(safe-area-inset-left));
   z-index: 4;
-  width: 232px;
+  width: 264px;
   max-width: calc(100vw - 2 * var(--gutter));
   background: var(--surface);
   border: 1px solid var(--hairline);
@@ -222,29 +223,82 @@ button {
   box-shadow: var(--shadow-sm);
 }
 
-.legend-summary {
+.legend-bar {
   display: flex;
   align-items: center;
-  gap: 10px;
-  width: 100%;
-  padding: 10px 12px;
-  text-align: left;
-  border-radius: var(--radius);
+  gap: 8px;
+  padding: 6px 4px 6px 12px;
 }
 
-.legend-title {
-  font-weight: 600;
+/* What is on the map: each pill switches a kind of traffic on or off. */
+.modes {
+  display: flex;
+  flex: 1;
+  gap: 4px;
+}
+
+.mode {
+  display: inline-flex;
+  flex: 1;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  height: 32px;
+  padding: 0 10px;
+  border: 1px solid var(--hairline);
+  border-radius: 999px;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--muted);
+  transition:
+    background-color 150ms,
+    color 150ms,
+    border-color 150ms;
+}
+
+.mode:hover {
+  border-color: var(--hairline-strong);
+  color: var(--ink-soft);
+}
+
+.mode[aria-pressed='true'] {
+  background: var(--ink);
+  border-color: var(--ink);
+  color: var(--paper);
+}
+
+.mode[aria-pressed='false'] .glyph {
+  opacity: 0.35;
+}
+
+.mode[aria-pressed='true'] .glyph.is-long-distance {
+  background: var(--paper);
+}
+
+.mode-count {
+  font: 400 12px var(--font-mono);
+  font-variant-numeric: tabular-nums;
+  opacity: 0.7;
+}
+
+.legend-expand {
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: 32px;
+  height: 32px;
+  border-radius: var(--radius);
+  color: var(--muted);
+}
+
+.legend-expand:hover {
+  background: var(--paper-deep);
+  color: var(--ink);
 }
 
 .legend-status {
-  flex: 1;
-  color: var(--muted);
+  margin: -2px 12px 8px;
   font: 400 12px var(--font-mono);
-  font-variant-numeric: tabular-nums;
-  white-space: nowrap;
-}
-
-.legend-summary svg {
   color: var(--muted);
 }
 
@@ -359,6 +413,10 @@ button {
 
 .glyph.is-cargo {
   background: var(--spruce);
+}
+
+.glyph.is-metro {
+  background: var(--ruska);
 }
 
 .glyph.is-other {
@@ -732,6 +790,11 @@ button {
   align-items: center;
   column-gap: 8px;
   min-height: 40px;
+}
+
+.timetable.is-untimed .stop {
+  grid-template-columns: 22px minmax(0, 1fr);
+  min-height: 36px;
 }
 
 .stop-time {

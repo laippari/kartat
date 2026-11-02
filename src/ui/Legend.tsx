@@ -1,46 +1,66 @@
 import { useState } from 'react';
 import { useTrainStore } from '../data/trainStore';
-import { CATEGORIES, type Category } from '../data/types';
+import { TRAIN_CATEGORIES, type Category } from '../data/types';
 import { CATEGORY_LABELS, formatTime } from '../lib/format';
 import { Chevron } from './icons';
 
 interface Props {
   hidden: ReadonlySet<Category>;
   onToggle(category: Category): void;
+  onToggleTrains(): void;
 }
 
-export function Legend({ hidden, onToggle }: Props) {
+export function Legend({ hidden, onToggle, onToggleTrains }: Props) {
   const { counts, ready, connected, recording } = useTrainStore();
   const [expanded, setExpanded] = useState(() => window.matchMedia('(min-width: 768px)').matches);
-  const total = CATEGORIES.reduce((sum, c) => sum + counts[c], 0);
+  const trains = TRAIN_CATEGORIES.reduce((sum, c) => sum + counts[c], 0);
+  const trainsShown = TRAIN_CATEGORIES.some((c) => !hidden.has(c));
+  const metroShown = !hidden.has('metro');
+  const live = ready && connected && !recording;
 
   const status = !ready
     ? 'Haetaan junia…'
     : recording
-      ? `${total} · tallenne`
+      ? 'Tallenne'
       : !connected
         ? 'Yhdistetään uudelleen…'
-        : `${total} liikkeellä`;
+        : null;
 
   return (
-    <section className="legend" aria-label="Junat kartalla">
-      <button
-        type="button"
-        className="legend-summary"
-        aria-expanded={expanded}
-        aria-controls="legend-list"
-        onClick={() => setExpanded(!expanded)}
-      >
-        <span className={`live-dot${ready && connected && !recording ? ' is-live' : ''}`} aria-hidden />
-        <span className="legend-title">Junat</span>
-        <span className="legend-status" aria-live="polite">
+    <section className="legend" aria-label="Kartalla näkyvät">
+      <div className="legend-bar">
+        <span className={`live-dot${live ? ' is-live' : ''}`} title={live ? 'Reaaliaikainen' : undefined} aria-hidden />
+        <div className="modes" role="group" aria-label="Näytä kartalla">
+          <button type="button" className="mode" aria-pressed={trainsShown} onClick={onToggleTrains}>
+            <span className="glyph is-long-distance" aria-hidden />
+            Junat
+            <span className="mode-count">{ready ? trains : '–'}</span>
+          </button>
+          <button type="button" className="mode" aria-pressed={metroShown} onClick={() => onToggle('metro')}>
+            <span className="glyph is-metro" aria-hidden />
+            Metro
+            <span className="mode-count">{counts.metro || '–'}</span>
+          </button>
+        </div>
+        <button
+          type="button"
+          className="legend-expand"
+          aria-expanded={expanded}
+          aria-controls="legend-list"
+          aria-label={expanded ? 'Piilota selite' : 'Näytä selite'}
+          onClick={() => setExpanded(!expanded)}
+        >
+          <Chevron up={expanded} />
+        </button>
+      </div>
+      {status && (
+        <p className="legend-status" aria-live="polite">
           {status}
-        </span>
-        <Chevron up={expanded} />
-      </button>
+        </p>
+      )}
       {expanded && (
         <ul className="legend-list" id="legend-list">
-          {CATEGORIES.map((c) => (
+          {TRAIN_CATEGORIES.map((c) => (
             <li key={c}>
               <button
                 type="button"

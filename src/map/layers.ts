@@ -5,6 +5,8 @@ import type { Category, Station } from '../data/types';
 
 export const TRAIN_SOURCE = 'trains';
 export const STATION_SOURCE = 'stations';
+export const METRO_SOURCE = 'metro';
+export const METRO_LAYERS = ['metro-line', 'metro-stations'];
 /** Invisible, generously sized circles that make small dots easy to hover and tap. */
 export const TRAIN_HIT_LAYER = 'trains-hit';
 
@@ -39,6 +41,8 @@ const categoryColor = (other: string, text = false): ExpressionSpecification => 
   text ? c.lakeText : c.lake,
   'cargo',
   text ? c.spruceText : c.spruce,
+  'metro',
+  text ? c.ruskaText : c.ruska,
   other,
 ];
 
@@ -96,6 +100,58 @@ export function addStationLayers(map: MapLibre) {
       },
     });
   }
+}
+
+/** The metro lines and stations, drawn under everything that moves. */
+export function addMetroLayers(map: MapLibre) {
+  map.addSource(METRO_SOURCE, { type: 'geojson', data: { type: 'FeatureCollection', features: [] } });
+  map.addLayer({
+    id: 'metro-line',
+    type: 'line',
+    source: METRO_SOURCE,
+    minzoom: 8,
+    // Each line is stored once per direction; one is enough to draw.
+    filter: ['all', ['==', ['get', 'kind'], 'line'], ['==', ['get', 'direction'], 1]],
+    layout: { 'line-join': 'round', 'line-cap': 'round' },
+    paint: {
+      'line-color': c.ruska,
+      'line-width': zoomed([
+        [8, 1],
+        [11, 2.2],
+        [14, 3.5],
+        [17, 5],
+      ]),
+      'line-opacity': ['interpolate', ['linear'], ['zoom'], 8, 0.4, 10, 0.75],
+    },
+  });
+  const icon = stationIcon(7, c.ruska);
+  map.addImage('station-metro', icon.image, icon.options);
+  map.addLayer({
+    id: 'metro-stations',
+    type: 'symbol',
+    source: METRO_SOURCE,
+    minzoom: 10,
+    filter: ['==', ['get', 'kind'], 'station'],
+    layout: {
+      'icon-image': 'station-metro',
+      'icon-size': zoomed([
+        [10, 0.75],
+        [13, 1],
+        [16, 1.2],
+      ]),
+      'icon-allow-overlap': true,
+      'text-field': ['step', ['zoom'], '', 12, ['get', 'name']],
+      'text-font': fonts.regular,
+      'text-size': zoomed([
+        [12, 11],
+        [15, 13],
+      ]),
+      'text-anchor': 'top',
+      'text-offset': [0, 0.7],
+      'text-optional': true,
+    },
+    paint: { 'text-color': c.inkSoft, 'text-halo-color': c.paper, 'text-halo-width': 1.5 },
+  });
 }
 
 export function stationsToGeoJson(stations: Iterable<Station>): GeoJSON.FeatureCollection {

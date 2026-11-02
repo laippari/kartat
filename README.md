@@ -29,10 +29,12 @@ Kertaluonteinen asetus: repon *Settings → Pages → Build and deployment → S
 | Kulkevat junat (tyyppi, reitti, myöhästyminen) | Digitraffic GraphQL `currentlyRunningTrains` | Päivitys minuutin välein |
 | Junan aikataulu | Digitraffic REST `trains/{pvm}/{numero}` | Päivitys 20 s välein, kun tiedot ovat auki |
 | Liikennepaikat | Digitraffic REST `metadata/stations` | Kerran |
+| Metrojen sijainnit | HSL, MQTT `/hfp/v2/journey/ongoing/vp/metro/#` | Live-virta WebSocketin yli, ei avainta |
+| Metrolinjat ja -asemat | HSL GTFS | Valmiiksi tiedostoon `public/data/metro.geojson` (`npm run data:metro`) |
 | Rataverkko (yleiskuva) | Digitraffic infra-api `radat.geojson` | Kevennetty valmiiksi tiedostoon `public/data/rail-network.geojson` (`npm run data:rail`) |
 | Taustakartta | OpenFreeMap (OpenMapTiles) | Oma tyyli `src/map/style.ts` |
 
-Junadata: Fintraffic / digitraffic.fi, CC BY 4.0. Rataverkko: Väylävirasto / digitraffic.fi, CC BY 4.0.
+Junadata: Fintraffic / digitraffic.fi, CC BY 4.0. Metro: HSL, CC BY 4.0. Rataverkko: Väylävirasto / digitraffic.fi, CC BY 4.0.
 Kartta: © OpenMapTiles © OpenStreetMap.
 
 ## Rakenne

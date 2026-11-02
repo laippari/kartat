@@ -1,10 +1,13 @@
-import { useEffect, useRef, type ReactNode } from 'react';
+import { useEffect, useRef, useState, type ReactNode } from 'react';
 import maplibregl, { type GeoJSONSource, type Map as MapLibre } from 'maplibre-gl';
 import 'maplibre-gl/dist/maplibre-gl.css';
 import { mapStyle } from './style';
 import {
+  addMetroLayers,
   addStationLayers,
   addTrainLayers,
+  METRO_LAYERS,
+  METRO_SOURCE,
   STATION_SOURCE,
   stationsToGeoJson,
   TRAIN_HIT_LAYER,
@@ -57,6 +60,7 @@ export function MapView(props: Props) {
   const mapRef = useRef<MapLibre | null>(null);
   const latest = useRef(props);
   latest.current = props;
+  const [loaded, setLoaded] = useState(false);
   const { version } = useTrainStore();
 
   useEffect(() => {
@@ -80,7 +84,7 @@ export function MapView(props: Props) {
     const attribution = new maplibregl.AttributionControl({
         compact: true,
         customAttribution:
-          'Junat: <a href="https://www.digitraffic.fi/" target="_blank">Fintraffic / digitraffic.fi</a>, CC BY 4.0',
+          'Junat: <a href="https://www.digitraffic.fi/" target="_blank">Fintraffic / digitraffic.fi</a>, CC BY 4.0 | Metro: <a href="https://www.hsl.fi/avoindata" target="_blank">HSL</a>, CC BY 4.0',
     });
     map.addControl(attribution, 'bottom-left');
     // Start collapsed behind the (i) button; the credits are long.
@@ -95,9 +99,12 @@ export function MapView(props: Props) {
 
     map.on('load', () => {
       collapseAttribution();
+      addMetroLayers(map);
       addStationLayers(map);
       addTrainLayers(map);
       (map.getSource(STATION_SOURCE) as GeoJSONSource).setData(stationsToGeoJson(trainStore.stations.values()));
+      if (trainStore.metro) (map.getSource(METRO_SOURCE) as GeoJSONSource).setData(trainStore.metro.geojson);
+      setLoaded(true);
       latest.current.onReady({
         zoomIn: () => map.zoomIn(),
         zoomOut: () => map.zoomOut(),
@@ -218,11 +225,22 @@ export function MapView(props: Props) {
     };
   }, []);
 
-  // Stations arrive after the map has loaded on a slow connection.
+  // Stations and the metro network may arrive after the map has loaded.
   useEffect(() => {
-    const source = mapRef.current?.getSource(STATION_SOURCE) as GeoJSONSource | undefined;
-    source?.setData(stationsToGeoJson(trainStore.stations.values()));
-  }, [version]);
+    const map = mapRef.current;
+    (map?.getSource(STATION_SOURCE) as GeoJSONSource | undefined)?.setData(
+      stationsToGeoJson(trainStore.stations.values()),
+    );
+    if (trainStore.metro) (map?.getSource(METRO_SOURCE) as GeoJSONSource | undefined)?.setData(trainStore.metro.geojson);
+  }, [version, loaded]);
+
+  // Hiding the metro hides its lines and stations too, not just the trains.
+  const metroHidden = props.hidden.has('metro');
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map || !loaded) return;
+    for (const id of METRO_LAYERS) map.setLayoutProperty(id, 'visibility', metroHidden ? 'none' : 'visible');
+  }, [metroHidden, loaded]);
 
   const { selectedKey, padding, following } = props;
   useEffect(() => {

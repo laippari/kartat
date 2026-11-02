@@ -1,11 +1,12 @@
 import { useCallback, useEffect, useRef, useState, type CSSProperties } from 'react';
 import { MapView, type MapApi, type MapPadding } from './map/MapView';
 import { trainStore, useTrainStore } from './data/trainStore';
-import type { Category, TrainKey } from './data/types';
+import { isMetroKey, TRAIN_CATEGORIES, type Category, type TrainKey } from './data/types';
 import { Legend } from './ui/Legend';
 import { MapControls } from './ui/MapControls';
 import { Sheet } from './ui/Sheet';
 import { TrainCard } from './ui/TrainCard';
+import { MetroDetails } from './ui/MetroDetails';
 import { TrainDetails, TrainHeader } from './ui/TrainDetails';
 
 // A selected train is kept in the address, e.g. #juna_2026-10-25_27, so a view can be shared.
@@ -14,6 +15,25 @@ const HASH_PREFIX = '#juna_';
 const hashFor = (key: TrainKey) => HASH_PREFIX + key.replace('/', '_');
 const keyFromHash = () =>
   location.hash.startsWith(HASH_PREFIX) ? location.hash.slice(HASH_PREFIX.length).replace('_', '/') : null;
+
+// What the viewer chose to show is remembered on this device.
+const HIDDEN_KEY = 'kartat.hidden';
+
+function loadHidden(): ReadonlySet<Category> {
+  try {
+    return new Set(JSON.parse(localStorage.getItem(HIDDEN_KEY) ?? '[]'));
+  } catch {
+    return new Set();
+  }
+}
+
+function saveHidden(hidden: ReadonlySet<Category>) {
+  try {
+    localStorage.setItem(HIDDEN_KEY, JSON.stringify([...hidden]));
+  } catch {
+    // Storage may be blocked; the choice then lasts until the page is closed.
+  }
+}
 
 function replaceHash(hash: string) {
   try {
@@ -28,7 +48,7 @@ export function App() {
   const [hoveredKey, setHoveredKey] = useState<TrainKey | null>(null);
   const [detailsOpen, setDetailsOpen] = useState(false);
   const [following, setFollowing] = useState(false);
-  const [hidden, setHidden] = useState<ReadonlySet<Category>>(new Set());
+  const [hidden, setHidden] = useState<ReadonlySet<Category>>(loadHidden);
   const [cover, setCover] = useState<MapPadding>({ right: 0, bottom: 0 });
   const map = useRef<MapApi | null>(null);
   const { ready } = useTrainStore();
@@ -71,7 +91,8 @@ export function App() {
 
   useEffect(() => {
     if (!ready) return;
-    const hash = selectedKey && detailsOpen ? hashFor(selectedKey) : '';
+    // Metro runs are not linked: they last minutes, and their ids are not short.
+    const hash = selectedKey && detailsOpen && !isMetroKey(selectedKey) ? hashFor(selectedKey) : '';
     if (location.hash !== hash) replaceHash(hash);
   }, [ready, selectedKey, detailsOpen]);
 
@@ -83,10 +104,26 @@ export function App() {
     return () => window.removeEventListener('keydown', onKey);
   }, [close]);
 
+  const updateHidden = (next: Set<Category>) => {
+    setHidden(next);
+    saveHidden(next);
+  };
+
   const toggleCategory = (category: Category) => {
     const next = new Set(hidden);
     if (!next.delete(category)) next.add(category);
-    setHidden(next);
+    updateHidden(next);
+  };
+
+  // One switch for all trains: off if any kind is showing, otherwise all back on.
+  const toggleTrains = () => {
+    const next = new Set(hidden);
+    const anyShown = TRAIN_CATEGORIES.some((c) => !hidden.has(c));
+    for (const c of TRAIN_CATEGORIES) {
+      if (anyShown) next.add(c);
+      else next.delete(c);
+    }
+    updateHidden(next);
   };
 
   const locate = () =>
@@ -127,7 +164,7 @@ export function App() {
         }}
       />
 
-      <Legend hidden={hidden} onToggle={toggleCategory} />
+      <Legend hidden={hidden} onToggle={toggleCategory} onToggleTrains={toggleTrains} />
 
       <MapControls
         onZoomIn={() => map.current?.zoomIn()}
@@ -137,7 +174,7 @@ export function App() {
 
       <Sheet
         open={detailsOpen && selectedKey !== null}
-        label="Junan tiedot"
+        label={sheetKey && isMetroKey(sheetKey) ? 'Metron tiedot' : 'Junan tiedot'}
         onClose={close}
         onCover={setCover}
         header={
@@ -151,7 +188,12 @@ export function App() {
           )
         }
       >
-        {sheetKey && <TrainDetails key={sheetKey} trainKey={sheetKey} />}
+        {sheetKey &&
+          (isMetroKey(sheetKey) ? (
+            <MetroDetails key={sheetKey} trainKey={sheetKey} />
+          ) : (
+            <TrainDetails key={sheetKey} trainKey={sheetKey} />
+          ))}
       </Sheet>
     </div>
   );

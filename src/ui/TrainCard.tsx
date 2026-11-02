@@ -1,6 +1,6 @@
 import { stationName, trainStore } from '../data/trainStore';
 import type { TrainKey } from '../data/types';
-import { delayText, isLate, trainTitle, typeName } from '../lib/format';
+import { delayText, isLate, metroStart, trainTitle, typeName } from '../lib/format';
 import { useNow } from '../lib/hooks';
 import { ArrowRight } from './icons';
 
@@ -18,7 +18,13 @@ export function TrainCard({ trainKey, pinned, onOpen }: Props) {
   const number = Number(trainKey.split('/')[1]);
 
   const title = meta ? trainTitle(meta) : `Juna ${number}`;
-  const kind = meta ? (meta.commuterLine ? `Lähijuna ${meta.trainNumber}` : typeName(meta.type)) : null;
+  const kind = !meta
+    ? null
+    : meta.metro
+      ? `Metro · lähti ${metroStart(meta.metro.start)}`
+      : meta.commuterLine
+        ? `Lähijuna ${meta.trainNumber}`
+        : typeName(meta.type);
   const delay = delayText(meta?.delay);
 
   return (
@@ -40,7 +46,7 @@ export function TrainCard({ trainKey, pinned, onOpen }: Props) {
       {delay && <div className={`card-delay${isLate(meta?.delay) ? ' is-late' : ''}`}>{delay}</div>}
       {pinned && (
         <button type="button" className="card-open" onClick={onOpen}>
-          Aikataulu ja tiedot
+          {meta?.metro ? 'Asemat ja tiedot' : 'Aikataulu ja tiedot'}
           <ArrowRight />
         </button>
       )}

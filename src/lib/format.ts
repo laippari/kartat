@@ -42,10 +42,12 @@ export const CATEGORY_LABELS: Record<Category, string> = {
   commuter: 'Lähijunat',
   cargo: 'Tavarajunat',
   other: 'Muut',
+  metro: 'Metro',
 };
 
-/** How passengers would name the train: "R-juna", "IC 27", "T 3642". */
-export function trainTitle(meta: Pick<TrainMeta, 'type' | 'trainNumber' | 'commuterLine'>) {
+/** How passengers would name it: "R-juna", "IC 27", "T 3642", "M1". */
+export function trainTitle(meta: Pick<TrainMeta, 'type' | 'trainNumber' | 'commuterLine' | 'metro'>) {
+  if (meta.metro) return meta.metro.line;
   if (meta.commuterLine) return `${meta.commuterLine}-juna`;
   return `${meta.type} ${meta.trainNumber}`;
 }
@@ -53,8 +55,12 @@ export function trainTitle(meta: Pick<TrainMeta, 'type' | 'trainNumber' | 'commu
 /** Short label drawn next to the dot on the map. */
 export function mapLabel(meta: TrainMeta | undefined, trainNumber: number) {
   if (!meta) return String(trainNumber);
+  if (meta.metro) return meta.metro.line;
   return meta.commuterLine ?? `${meta.type} ${meta.trainNumber}`;
 }
+
+/** "13:59" from the realtime feed as "13.59". */
+export const metroStart = (start: string) => start.replace(':', '.');
 
 export function delayText(minutes: number | null | undefined) {
   if (minutes == null) return null;

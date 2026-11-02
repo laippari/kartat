@@ -11,7 +11,8 @@
     "test": "vitest run",
     "data:rail": "node scripts/build-rail-network.mjs",
     "data:artifact": "node scripts/build-artifact-data.mjs",
-    "build:artifact": "tsc -b && vite build --mode artifact && node scripts/package-artifact.mjs"
+    "build:artifact": "tsc -b && vite build --mode artifact && node scripts/package-artifact.mjs",
+    "data:metro": "node scripts/build-metro.mjs"
   },
   "dependencies": {
     "@fontsource/ibm-plex-mono": "^5.3.0",
