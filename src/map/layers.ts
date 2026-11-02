@@ -30,15 +30,15 @@ const dotRadius = zoomed(DOT_RADIUS);
 /** A radius a few pixels outside the dot, for rings drawn around it. */
 const ringRadius = (extra: number) => zoomed(DOT_RADIUS.map(([z, r]) => [z, r + extra]));
 
-const categoryColor = (other: string): ExpressionSpecification => [
+const categoryColor = (other: string, text = false): ExpressionSpecification => [
   'match',
   ['get', 'cat'],
   'long-distance',
   c.ink,
   'commuter',
-  c.lake,
+  text ? c.lakeText : c.lake,
   'cargo',
-  c.spruce,
+  text ? c.spruceText : c.spruce,
   other,
 ];
 
@@ -172,7 +172,7 @@ export function addTrainLayers(map: MapLibre) {
       'text-offset': [1.1, 0],
       'text-optional': true,
     },
-    paint: { 'text-color': categoryColor(c.muted), 'text-halo-color': c.paper, 'text-halo-width': 1.6 },
+    paint: { 'text-color': categoryColor(c.muted, true), 'text-halo-color': c.paper, 'text-halo-width': 1.6 },
   });
 
   map.addLayer({
